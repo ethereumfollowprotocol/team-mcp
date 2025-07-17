@@ -8,6 +8,10 @@ import type {
 	RepositoryActivity,
 	OrganizationSummary,
 	GitHubApiOptions,
+	GitHubProjectV2,
+	GitHubProjectV2Details,
+	GitHubProjectV2Item,
+	GitHubProjectV2Field,
 } from "./types";
 
 export class GitHubApiService {
@@ -309,6 +313,445 @@ export class GitHubApiService {
 			return result;
 		} catch (error: any) {
 			throw new Error(`Failed to search issues and PRs in organization ${org}: ${error.message}`);
+		}
+	}
+
+	// GitHub Projects v2 API methods using GraphQL
+	async getOrganizationProjects(org: string): Promise<GitHubProjectV2[]> {
+		const cacheKey = this.getCacheKey("getOrganizationProjects", { org });
+		const cached = this.getFromCache<GitHubProjectV2[]>(cacheKey);
+		if (cached) return cached;
+
+		try {
+			const query = `
+				query($org: String!) {
+					organization(login: $org) {
+						projectsV2(first: 100) {
+							nodes {
+								id
+								number
+								title
+								url
+								public
+								closed
+								createdAt
+								updatedAt
+								items(first: 1) {
+									totalCount
+								}
+							}
+						}
+					}
+				}
+			`;
+
+			const response = await this.octokit.graphql<{
+				organization: {
+					projectsV2: {
+						nodes: Array<{
+							id: string;
+							number: number;
+							title: string;
+							url: string;
+							public: boolean;
+							closed: boolean;
+							createdAt: string;
+							updatedAt: string;
+							items: {
+								totalCount: number;
+							};
+						}>;
+					};
+				};
+			}>(query, { org });
+
+			const projects: GitHubProjectV2[] = response.organization.projectsV2.nodes.map(project => ({
+				id: project.id,
+				number: project.number,
+				title: project.title,
+				url: project.url,
+				description: null, // ProjectV2 doesn't have description field
+				visibility: project.public ? "PUBLIC" : "PRIVATE",
+				closed: project.closed,
+				owner: {
+					login: org, // Use the org parameter since owner info isn't available in ProjectV2
+					type: "Organization",
+				},
+				createdAt: project.createdAt,
+				updatedAt: project.updatedAt,
+				itemsCount: project.items.totalCount,
+			}));
+
+			this.setCache(cacheKey, projects);
+			return projects;
+		} catch (error: any) {
+			throw new Error(`Failed to fetch projects for organization ${org}: ${error.message}`);
+		}
+	}
+
+	async getProjectDetails(projectId: string): Promise<GitHubProjectV2Details> {
+		const cacheKey = this.getCacheKey("getProjectDetails", { projectId });
+		const cached = this.getFromCache<GitHubProjectV2Details>(cacheKey);
+		if (cached) return cached;
+
+		try {
+			const query = `
+				query($projectId: ID!) {
+					node(id: $projectId) {
+						... on ProjectV2 {
+							id
+							number
+							title
+							url
+							public
+							closed
+							createdAt
+							updatedAt
+							fields(first: 20) {
+								nodes {
+									... on ProjectV2Field {
+										id
+										name
+										dataType
+									}
+									... on ProjectV2SingleSelectField {
+										id
+										name
+										dataType
+										options {
+											id
+											name
+											color
+										}
+									}
+									... on ProjectV2IterationField {
+										id
+										name
+										dataType
+									}
+								}
+							}
+							items(first: 100) {
+								totalCount
+								nodes {
+									id
+									type
+									content {
+										... on Issue {
+											id
+											title
+											url
+											number
+											state
+											body
+											author {
+												login
+												avatarUrl
+											}
+											assignees(first: 10) {
+												nodes {
+													login
+													avatarUrl
+												}
+											}
+											labels(first: 10) {
+												nodes {
+													name
+													color
+												}
+											}
+											createdAt
+											updatedAt
+										}
+										... on PullRequest {
+											id
+											title
+											url
+											number
+											state
+											body
+											author {
+												login
+												avatarUrl
+											}
+											assignees(first: 10) {
+												nodes {
+													login
+													avatarUrl
+												}
+											}
+											labels(first: 10) {
+												nodes {
+													name
+													color
+												}
+											}
+											createdAt
+											updatedAt
+										}
+										... on DraftIssue {
+											id
+											title
+											body
+											createdAt
+											updatedAt
+										}
+									}
+									fieldValues(first: 20) {
+										nodes {
+											... on ProjectV2ItemFieldTextValue {
+												field {
+													... on ProjectV2Field {
+														name
+														dataType
+													}
+												}
+												text
+											}
+											... on ProjectV2ItemFieldSingleSelectValue {
+												field {
+													... on ProjectV2SingleSelectField {
+														name
+														dataType
+													}
+												}
+												name
+											}
+											... on ProjectV2ItemFieldNumberValue {
+												field {
+													... on ProjectV2Field {
+														name
+														dataType
+													}
+												}
+												number
+											}
+											... on ProjectV2ItemFieldDateValue {
+												field {
+													... on ProjectV2Field {
+														name
+														dataType
+													}
+												}
+												date
+											}
+											... on ProjectV2ItemFieldUserValue {
+												field {
+													... on ProjectV2Field {
+														name
+														dataType
+													}
+												}
+												users(first: 10) {
+													nodes {
+														login
+														name
+														avatarUrl
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			`;
+
+			const response = await this.octokit.graphql<{
+				node: {
+					id: string;
+					number: number;
+					title: string;
+					url: string;
+					public: boolean;
+					closed: boolean;
+					createdAt: string;
+					updatedAt: string;
+					fields: {
+						nodes: Array<{
+							id: string;
+							name: string;
+							dataType: string;
+							options?: Array<{
+								id: string;
+								name: string;
+								color?: string;
+							}>;
+						}>;
+					};
+					items: {
+						totalCount: number;
+						nodes: Array<{
+							id: string;
+							type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+							content: {
+								id: string;
+								title: string;
+								url?: string;
+								number?: number;
+								state?: "OPEN" | "CLOSED" | "MERGED";
+								body?: string;
+								author?: {
+									login: string;
+									avatarUrl: string;
+								} | null;
+								assignees?: {
+									nodes: Array<{
+										login: string;
+										avatarUrl: string;
+									}>;
+								} | null;
+								labels?: {
+									nodes: Array<{
+										name: string;
+										color: string;
+									}>;
+								} | null;
+								createdAt: string;
+								updatedAt: string;
+							};
+							fieldValues: {
+								nodes: Array<{
+									field?: {
+										name: string;
+										dataType: string;
+									};
+									text?: string;
+									name?: string;
+									number?: number;
+									date?: string;
+									users?: {
+										nodes: Array<{
+											login: string;
+											name: string;
+											avatarUrl: string;
+										}>;
+									};
+								}>;
+							};
+						}>;
+					};
+				};
+			}>(query, { projectId });
+
+			const project = response.node;
+
+			const projectDetails: GitHubProjectV2Details = {
+				project: {
+					id: project.id,
+					number: project.number,
+					title: project.title,
+					url: project.url,
+					description: null, // ProjectV2 doesn't have description field
+					visibility: project.public ? "PUBLIC" : "PRIVATE",
+					closed: project.closed,
+					owner: {
+						login: "unknown", // Owner info not available in this query
+						type: "Organization",
+					},
+					createdAt: project.createdAt,
+					updatedAt: project.updatedAt,
+					itemsCount: project.items.totalCount,
+				},
+				fields: project.fields.nodes
+					.filter(field => field && field.name)
+					.map(field => ({
+						id: field.id,
+						name: field.name,
+						dataType: field.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+						options: field.options,
+					})),
+				items: project.items.nodes.map(item => {
+					// Get assignees from regular issue/PR assignees field
+					let assignees = item.content.assignees?.nodes || [];
+					
+					// Also check for assignees in custom fields
+					const assigneeField = item.fieldValues.nodes.find(fv => 
+						fv.field && fv.field.name.toLowerCase().includes('assignee') && fv.users
+					);
+					
+					if (assigneeField && assigneeField.users) {
+						// Convert custom field users to assignees format
+						const customAssignees = assigneeField.users.nodes.map(user => ({
+							login: user.login,
+							avatarUrl: user.avatarUrl,
+						}));
+						
+						// Merge with existing assignees (avoiding duplicates)
+						const allAssignees = [...assignees];
+						customAssignees.forEach(customAssignee => {
+							if (!allAssignees.find(a => a.login === customAssignee.login)) {
+								allAssignees.push(customAssignee);
+							}
+						});
+						assignees = allAssignees;
+					}
+					
+					return {
+						id: item.id,
+						type: item.type,
+						content: {
+							id: item.content.id,
+							title: item.content.title,
+							url: item.content.url || "",
+							number: item.content.number,
+							state: item.content.state,
+							body: item.content.body,
+							author: item.content.author || undefined,
+							assignees: assignees,
+							labels: item.content.labels?.nodes || [],
+							createdAt: item.content.createdAt,
+							updatedAt: item.content.updatedAt,
+						},
+						fieldValues: item.fieldValues.nodes
+						.filter(fieldValue => fieldValue.field && fieldValue.field.name)
+						.map(fieldValue => {
+							let value = fieldValue.text || fieldValue.name || fieldValue.number || fieldValue.date || null;
+							
+							// Handle user fields (assignees)
+							if (fieldValue.users && fieldValue.users.nodes.length > 0) {
+								value = fieldValue.users.nodes.map(user => user.login).join(', ');
+								
+								// This is handled above in the main assignees extraction
+							}
+							
+							return {
+								field: {
+									name: fieldValue.field!.name,
+									type: fieldValue.field!.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+								},
+								value: value,
+							};
+						}),
+					};
+				}),
+				totalItemsCount: project.items.totalCount,
+				summary: {
+					totalItems: project.items.totalCount,
+					openIssues: project.items.nodes.filter(item => 
+						item.type === "ISSUE" && item.content.state === "OPEN"
+					).length,
+					closedIssues: project.items.nodes.filter(item => 
+						item.type === "ISSUE" && item.content.state === "CLOSED"
+					).length,
+					openPRs: project.items.nodes.filter(item => 
+						item.type === "PULL_REQUEST" && item.content.state === "OPEN"
+					).length,
+					mergedPRs: project.items.nodes.filter(item => 
+						item.type === "PULL_REQUEST" && item.content.state === "MERGED"
+					).length,
+					draftItems: project.items.nodes.filter(item => 
+						item.type === "DRAFT_ISSUE"
+					).length,
+				},
+			};
+
+			this.setCache(cacheKey, projectDetails);
+			return projectDetails;
+		} catch (error: any) {
+			throw new Error(`Failed to fetch project details for project ${projectId}: ${error.message}`);
 		}
 	}
 }

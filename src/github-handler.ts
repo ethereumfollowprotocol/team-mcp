@@ -56,7 +56,7 @@ async function redirectToGithub(
 			location: getUpstreamAuthorizeUrl({
 				client_id: env.GITHUB_CLIENT_ID,
 				redirect_uri: new URL("/callback", request.url).href,
-				scope: "repo read:org read:repo_hook",
+				scope: "repo read:org read:repo_hook read:project",
 				state: btoa(JSON.stringify(oauthReqInfo)),
 				upstream_url: "https://github.com/login/oauth/authorize",
 			}),

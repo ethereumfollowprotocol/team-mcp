@@ -145,3 +145,80 @@ export interface GitHubApiOptions {
 	direction?: "asc" | "desc";
 	state?: "open" | "closed" | "all";
 }
+
+export interface GitHubProjectV2 {
+	id: string;
+	number: number;
+	title: string;
+	url: string;
+	description: string | null;
+	visibility: "PUBLIC" | "PRIVATE";
+	closed: boolean;
+	owner: {
+		login: string;
+		type: string;
+	};
+	createdAt: string;
+	updatedAt: string;
+	itemsCount: number;
+}
+
+export interface GitHubProjectV2Item {
+	id: string;
+	type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+	content: {
+		id: string;
+		title: string;
+		url: string;
+		number?: number;
+		state?: "OPEN" | "CLOSED" | "MERGED";
+		body?: string;
+		author?: {
+			login: string;
+			avatarUrl: string;
+		};
+		assignees?: Array<{
+			login: string;
+			avatarUrl: string;
+		}>;
+		labels?: Array<{
+			name: string;
+			color: string;
+		}>;
+		createdAt: string;
+		updatedAt: string;
+	};
+	fieldValues: Array<{
+		field: {
+			name: string;
+			type: "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION";
+		};
+		value: string | number | null;
+	}>;
+}
+
+export interface GitHubProjectV2Field {
+	id: string;
+	name: string;
+	dataType: "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION";
+	options?: Array<{
+		id: string;
+		name: string;
+		color?: string;
+	}>;
+}
+
+export interface GitHubProjectV2Details {
+	project: GitHubProjectV2;
+	fields: GitHubProjectV2Field[];
+	items: GitHubProjectV2Item[];
+	totalItemsCount: number;
+	summary: {
+		totalItems: number;
+		openIssues: number;
+		closedIssues: number;
+		openPRs: number;
+		mergedPRs: number;
+		draftItems: number;
+	};
+}

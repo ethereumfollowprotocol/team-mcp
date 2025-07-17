@@ -465,8 +465,127 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
+    // List organization projects (GitHub Projects v2)
+    this.server.tool(
+      "listOrganizationProjects",
+      "List all GitHub Projects v2 for a specific organization",
+      {
+        organization: z.string().describe("The GitHub organization name"),
+        includePrivate: z.boolean().optional().default(true).describe("Include private projects"),
+        limit: z.number().optional().default(50).describe("Maximum number of projects to return"),
+      },
+      async ({ organization, includePrivate, limit }) => {
+        try {
+          const projects = await githubApi.getOrganizationProjects(organization);
+          
+          // Filter by visibility if needed
+          let filteredProjects = projects;
+          if (!includePrivate) {
+            filteredProjects = projects.filter(project => project.visibility === "PUBLIC");
+          }
+          
+          // Limit results
+          const limitedProjects = filteredProjects.slice(0, limit);
+          
+          const result = {
+            organization,
+            total_projects: filteredProjects.length,
+            showing: limitedProjects.length,
+            projects: limitedProjects.map(project => ({
+              id: project.id,
+              number: project.number,
+              title: project.title,
+              description: project.description,
+              visibility: project.visibility,
+              closed: project.closed,
+              items_count: project.itemsCount,
+              created_at: project.createdAt,
+              updated_at: project.updatedAt,
+              url: project.url,
+            })),
+          };
+          
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Get detailed project information including all tasks
+    this.server.tool(
+      "getProjectDetails",
+      "Get detailed information about a GitHub Projects v2 board including all tasks, fields, and status",
+      {
+        projectId: z.string().describe("The GitHub project ID (can be obtained from listOrganizationProjects)"),
+        includeFields: z.boolean().optional().default(true).describe("Include custom field information"),
+        includeItems: z.boolean().optional().default(true).describe("Include all project items (issues, PRs, draft issues)"),
+        limit: z.number().optional().default(100).describe("Maximum number of items to return"),
+      },
+      async ({ projectId, includeFields, includeItems, limit }) => {
+        try {
+          const projectDetails = await githubApi.getProjectDetails(projectId);
+          
+          const result = {
+            project: {
+              id: projectDetails.project.id,
+              number: projectDetails.project.number,
+              title: projectDetails.project.title,
+              description: projectDetails.project.description,
+              visibility: projectDetails.project.visibility,
+              closed: projectDetails.project.closed,
+              owner: projectDetails.project.owner,
+              created_at: projectDetails.project.createdAt,
+              updated_at: projectDetails.project.updatedAt,
+              url: projectDetails.project.url,
+              total_items: projectDetails.totalItemsCount,
+            },
+            summary: projectDetails.summary,
+            fields: includeFields ? projectDetails.fields.map(field => ({
+              id: field.id,
+              name: field.name,
+              data_type: field.dataType,
+              options: field.options,
+            })) : [],
+            items: includeItems ? projectDetails.items.slice(0, limit).map(item => ({
+              id: item.id,
+              type: item.type,
+              title: item.content.title,
+              url: item.content.url,
+              number: item.content.number,
+              state: item.content.state,
+              body: item.content.body ? item.content.body.substring(0, 500) + (item.content.body.length > 500 ? "..." : "") : null,
+              author: item.content.author,
+              assignees: item.content.assignees,
+              labels: item.content.labels,
+              created_at: item.content.createdAt,
+              updated_at: item.content.updatedAt,
+              field_values: item.fieldValues.map(fv => ({
+                field_name: fv.field.name,
+                field_type: fv.field.type,
+                value: fv.value,
+              })),
+            })) : [],
+            showing_items: includeItems ? Math.min(limit, projectDetails.items.length) : 0,
+          };
+          
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
     // Dynamically add tools based on the user's login. In this case, I want to limit
-    // access to my Image Generation tool to just me
+    // access to team meetings tool to just me
     if (ALLOWED_USERNAMES.has(this.props.login)) {
       this.server.tool(
         "generateImage",
