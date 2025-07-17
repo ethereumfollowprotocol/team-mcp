@@ -1,140 +1,512 @@
-# Model Context Protocol (MCP) Server + Github OAuth
+# GitHub MCP Server
 
-This is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server that supports remote MCP connections, with Github OAuth built-in.
+A comprehensive Model Context Protocol (MCP) server built on Cloudflare Workers that provides secure access to GitHub repositories, organizations, and project management features. This server enables AI assistants to interact with GitHub data through OAuth-based authentication.
 
-You can deploy it to your own Cloudflare account, and after you create your own Github OAuth client app, you'll have a fully functional remote MCP server that you can build off. Users will be able to connect to your MCP server by signing in with their GitHub account.
+## 🚀 Features
 
-You can use this as a reference example for how to integrate other OAuth providers with an MCP server deployed to Cloudflare, using the [`workers-oauth-provider` library](https://github.com/cloudflare/workers-oauth-provider).
+### Repository Management
+- **Organization Repositories**: List and explore all repositories within GitHub organizations
+- **Repository Details**: Get comprehensive information about specific repositories including recent activity
+- **Commit History**: Access detailed commit history with filtering by author, date range, and branch
+- **Contributor Analytics**: Analyze contributor statistics and contributions
 
-The MCP server (powered by [Cloudflare Workers](https://developers.cloudflare.com/workers/)): 
+### Project Management (GitHub Projects v2)
+- **Project Discovery**: List all organization projects with visibility controls
+- **Project Details**: Complete project information including tasks, fields, and custom assignees
+- **Task Management**: Access all project items (issues, PRs, draft issues) with custom field support
+- **Progress Tracking**: Monitor project status and item completion
 
-* Acts as OAuth _Server_ to your MCP clients
-* Acts as OAuth _Client_ to your _real_ OAuth server (in this case, GitHub)
+### Search & Discovery
+- **Cross-Repository Search**: Search issues and pull requests across all organization repositories
+- **Activity Monitoring**: Track recent activity across organization repositories
+- **Advanced Filtering**: Filter by state, author, labels, and custom criteria
 
-## Getting Started
+### Additional Features
+- **AI Image Generation**: Generate images using Flux-1-Schnell model (restricted access)
+- **Performance Optimization**: Built-in caching and rate limit handling
+- **Comprehensive Error Handling**: User-friendly error messages and debugging
 
-Clone the repo directly & install dependencies: `npm install`.
+## 🏗️ Architecture
 
-Alternatively, you can use the command line below to get the remote MCP Server created on your local machine:
+### Technology Stack
+- **Runtime**: Cloudflare Workers for serverless execution
+- **Storage**: Cloudflare KV for OAuth token storage
+- **State Management**: Cloudflare Durable Objects for session persistence
+- **Authentication**: GitHub OAuth 2.0 with secure token handling
+- **Framework**: Hono.js for HTTP routing and middleware
+- **AI**: Cloudflare AI Workers for image generation
+
+### Core Components
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   MCP Client    │────│   OAuth Flow    │────│  GitHub API     │
+│   (Claude/AI)   │    │   (Cloudflare)  │    │  (GitHub.com)   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+        │                        │                        │
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   MCP Server    │────│   KV Storage    │────│  Durable Objects│
+│   (This App)    │    │   (Tokens)      │    │   (Sessions)    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+## 📦 Installation & Setup
+
+### Prerequisites
+- **Node.js** 18 or higher
+- **Cloudflare Account** with Workers plan
+- **GitHub Account** for OAuth app creation
+- **Wrangler CLI** installed globally
+
+### 1. Initial Setup
 ```bash
-npm create cloudflare@latest -- my-mcp-server --template=cloudflare/ai/demos/remote-mcp-github-oauth
+# Clone the repository
+git clone <repository-url>
+cd team-mcp
+
+# Install dependencies
+npm install
+
+# Login to Cloudflare
+wrangler login
 ```
 
-### For Production
-Create a new [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app): 
-- For the Homepage URL, specify `https://mcp-github-oauth.<your-subdomain>.workers.dev`
-- For the Authorization callback URL, specify `https://mcp-github-oauth.<your-subdomain>.workers.dev/callback`
-- Note your Client ID and generate a Client secret. 
-- Set secrets via Wrangler
+### 2. GitHub OAuth App Configuration
+1. Navigate to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Fill in the application details:
+   - **Application name**: `Your MCP Server`
+   - **Homepage URL**: `https://team-mcp.your-subdomain.workers.dev`
+   - **Authorization callback URL**: `https://team-mcp.your-subdomain.workers.dev/callback`
+4. Save the **Client ID** and generate a **Client Secret**
+
+### 3. Cloudflare Resources Setup
 ```bash
-wrangler secret put GITHUB_CLIENT_ID
-wrangler secret put GITHUB_CLIENT_SECRET
-wrangler secret put COOKIE_ENCRYPTION_KEY # add any random string here e.g. openssl rand -hex 32
+# Create KV namespace for OAuth tokens
+wrangler kv:namespace create "OAUTH_KV"
+
+# Generate encryption key for cookies
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
-#### Set up a KV namespace
-- Create the KV namespace: 
-`wrangler kv:namespace create "OAUTH_KV"`
-- Update the Wrangler file with the KV ID
 
-#### Deploy & Test
-Deploy the MCP server to make it available on your workers.dev domain 
-` wrangler deploy`
+### 4. Environment Configuration
+Update your `wrangler.jsonc` with the OAuth credentials:
 
-Test the remote server using [Inspector](https://modelcontextprotocol.io/docs/tools/inspector): 
-
+```json
+{
+  "name": "team-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "vars": {
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+    "GITHUB_CLIENT_SECRET": "your-github-client-secret", 
+    "COOKIE_ENCRYPTION_KEY": "your-base64-encryption-key"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "your-kv-namespace-id"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "MyMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  }
+}
 ```
+
+### 5. Deployment
+```bash
+# Deploy to Cloudflare Workers
+npm run deploy
+
+# Verify deployment
+curl -I https://team-mcp.your-subdomain.workers.dev/sse
+```
+
+## 🔧 Usage
+
+### Connecting with MCP Inspector
+The fastest way to test your deployment:
+
+```bash
+# Install and run MCP Inspector
 npx @modelcontextprotocol/inspector@latest
 ```
-Enter `https://mcp-github-oauth.<your-subdomain>.workers.dev/sse` and hit connect. Once you go through the authentication flow, you'll see the Tools working: 
 
-<img width="640" alt="image" src="https://github.com/user-attachments/assets/7973f392-0a9d-4712-b679-6dd23f824287" />
+Enter your server URL: `https://team-mcp.your-subdomain.workers.dev/sse`
 
-You now have a remote MCP server deployed! 
+### Connecting with Claude Desktop
+Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
-### Access Control
-
-This MCP server uses GitHub OAuth for authentication. All authenticated GitHub users can access basic tools like "add" and "userInfoOctokit".
-
-The "generateImage" tool is restricted to specific GitHub users listed in the `ALLOWED_USERNAMES` configuration:
-
-```typescript
-// Add GitHub usernames for image generation access
-const ALLOWED_USERNAMES = new Set([
-  'yourusername',
-  'teammate1'
-]);
-```
-
-### Access the remote MCP server from Claude Desktop
-
-Open Claude Desktop and navigate to Settings -> Developer -> Edit Config. This opens the configuration file that controls which MCP servers Claude can access.
-
-Replace the content with the following configuration. Once you restart Claude Desktop, a browser window will open showing your OAuth login page. Complete the authentication flow to grant Claude access to your MCP server. After you grant access, the tools will become available for you to use. 
-
-```
+```json
 {
   "mcpServers": {
-    "math": {
+    "github": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://mcp-github-oauth.<your-subdomain>.workers.dev/sse"
+        "https://team-mcp.your-subdomain.workers.dev/sse"
       ]
     }
   }
 }
 ```
 
-Once the Tools (under 🔨) show up in the interface, you can ask Claude to use them. For example: "Could you use the math tool to add 23 and 19?". Claude should invoke the tool and show the result generated by the MCP server.
+### Connecting with Cursor
+In Cursor's MCP settings, add:
+- **Type**: Command
+- **Command**: `npx mcp-remote https://team-mcp.your-subdomain.workers.dev/sse`
 
-### For Local Development
-If you'd like to iterate and test your MCP server, you can do so in local development. This will require you to create another OAuth App on GitHub: 
-- For the Homepage URL, specify `http://localhost:8788`
-- For the Authorization callback URL, specify `http://localhost:8788/callback`
-- Note your Client ID and generate a Client secret. 
-- Create a `.dev.vars` file in your project root with: 
+## 🛠️ Available Tools
+
+### Repository Tools
+
+#### `listOrganizationRepos`
+Lists all repositories for a GitHub organization with comprehensive filtering options.
+
+**Parameters:**
+- `organization` (string): GitHub organization name (e.g., "ethereumfollowprotocol")
+- `includePrivate` (boolean, default: true): Include private repositories
+- `sortBy` (enum, default: "updated"): Sort by "name", "updated", "created", or "pushed"
+- `limit` (number, default: 50): Maximum number of repositories to return
+
+**Example Usage:**
+```javascript
+// List recent repositories for an organization
+{
+  "organization": "ethereumfollowprotocol",
+  "includePrivate": true,
+  "sortBy": "updated",
+  "limit": 25
+}
 ```
-GITHUB_CLIENT_ID=your_development_github_client_id
-GITHUB_CLIENT_SECRET=your_development_github_client_secret
+
+#### `getRepositoryDetails`
+Retrieves comprehensive information about a specific repository including recent activity.
+
+**Parameters:**
+- `owner` (string): Repository owner (username or organization)
+- `repo` (string): Repository name
+- `includeCommits` (boolean, default: true): Include recent commits
+- `includeIssues` (boolean, default: true): Include recent issues
+- `includePRs` (boolean, default: true): Include recent pull requests
+- `days` (number, default: 30): Number of days to look back for activity
+
+#### `getCommitHistory`
+Fetches detailed commit history with advanced filtering capabilities.
+
+**Parameters:**
+- `owner` (string): Repository owner
+- `repo` (string): Repository name
+- `since` (string, optional): ISO 8601 date to start from
+- `until` (string, optional): ISO 8601 date to end at
+- `branch` (string, optional): Specific branch (defaults to default branch)
+- `author` (string, optional): Filter by author username or email
+- `limit` (number, default: 50): Maximum number of commits to return
+
+#### `getContributorStats`
+Analyzes contributor statistics and contributions for a repository.
+
+**Parameters:**
+- `owner` (string): Repository owner
+- `repo` (string): Repository name
+- `limit` (number, default: 50): Maximum number of contributors to return
+
+### Activity & Search Tools
+
+#### `getRecentActivity`
+Monitors recent activity across all repositories in an organization.
+
+**Parameters:**
+- `organization` (string): GitHub organization name
+- `days` (number, default: 7): Number of days to look back for activity
+- `includePrivate` (boolean, default: true): Include private repositories
+- `limit` (number, default: 20): Maximum number of repositories to show
+
+#### `searchIssuesAndPRs`
+Searches for issues and pull requests across all organization repositories.
+
+**Parameters:**
+- `organization` (string): GitHub organization name
+- `query` (string): Search query (supports GitHub search syntax)
+- `state` (enum, default: "all"): Filter by "open", "closed", or "all"
+- `limit` (number, default: 50): Maximum number of results to return
+
+**Search Query Examples:**
+- `"bug"` - Find issues/PRs containing "bug"
+- `"author:username"` - Find items by specific author
+- `"label:urgent"` - Find items with "urgent" label
+- `"is:pr is:open"` - Find open pull requests
+
+### Project Management Tools
+
+#### `listOrganizationProjects`
+Lists all GitHub Projects v2 for an organization.
+
+**Parameters:**
+- `organization` (string): GitHub organization name
+- `includePrivate` (boolean, default: true): Include private projects
+- `limit` (number, default: 50): Maximum number of projects to return
+
+#### `getProjectDetails`
+Retrieves comprehensive information about a GitHub Projects v2 board.
+
+**Parameters:**
+- `projectId` (string): GitHub project ID (obtained from `listOrganizationProjects`)
+- `includeFields` (boolean, default: true): Include custom field information
+- `includeItems` (boolean, default: true): Include all project items
+- `limit` (number, default: 100): Maximum number of items to return
+
+**Features:**
+- Custom field support (including assignees stored as custom fields)
+- Issue, PR, and draft issue handling
+- Field value extraction and formatting
+- Complete project metadata
+
+### Utility Tools
+
+#### `userInfoOctokit`
+Returns authenticated user information from GitHub.
+
+**Parameters:** None
+
+**Returns:** Complete GitHub user profile information
+
+#### `generateImage` (Restricted Access)
+Generates images using Cloudflare's Flux-1-Schnell model.
+
+**Parameters:**
+- `prompt` (string): Text description of the image to generate
+- `steps` (number, 4-8, default: 4): Number of diffusion steps for quality
+
+**Access Control:** Only available to users listed in the `ALLOWED_USERNAMES` configuration.
+
+## 📚 Practical Examples
+
+### Repository Analysis
+```javascript
+// Get organization overview
+const repos = await listOrganizationRepos({
+  organization: "ethereumfollowprotocol",
+  sortBy: "updated",
+  limit: 10
+});
+
+// Deep dive into a specific repository
+const details = await getRepositoryDetails({
+  owner: "ethereumfollowprotocol",
+  repo: "api",
+  days: 14
+});
+
+// Analyze contributor patterns
+const contributors = await getContributorStats({
+  owner: "ethereumfollowprotocol",
+  repo: "api",
+  limit: 20
+});
 ```
 
-#### Develop & Test
-Run the server locally to make it available at `http://localhost:8788`
-`wrangler dev`
+### Project Management
+```javascript
+// List all organization projects
+const projects = await listOrganizationProjects({
+  organization: "ethereumfollowprotocol"
+});
 
-To test the local server, enter `http://localhost:8788/sse` into Inspector and hit connect. Once you follow the prompts, you'll be able to "List Tools". 
+// Get detailed project information
+const projectDetails = await getProjectDetails({
+  projectId: "PVT_kwDOABCD123",
+  includeItems: true,
+  limit: 50
+});
+```
 
-#### Using Claude and other MCP Clients
+### Issue Tracking
+```javascript
+// Find all open bugs
+const bugs = await searchIssuesAndPRs({
+  organization: "ethereumfollowprotocol",
+  query: "bug is:issue is:open",
+  limit: 25
+});
 
-When using Claude to connect to your remote MCP server, you may see some error messages. This is because Claude Desktop doesn't yet support remote MCP servers, so it sometimes gets confused. To verify whether the MCP server is connected, hover over the 🔨 icon in the bottom right corner of Claude's interface. You should see your tools available there.
+// Monitor recent activity
+const activity = await getRecentActivity({
+  organization: "ethereumfollowprotocol",
+  days: 7
+});
+```
 
-#### Using Cursor and other MCP Clients
+## 🔒 Security & Authentication
 
-To connect Cursor with your MCP server, choose `Type`: "Command" and in the `Command` field, combine the command and args fields into one (e.g. `npx mcp-remote https://<your-worker-name>.<your-subdomain>.workers.dev/sse`).
+### OAuth Flow
+1. **Client Request**: MCP client connects to `/sse` endpoint
+2. **Authentication Challenge**: Server responds with OAuth challenge
+3. **GitHub Authorization**: User redirected to GitHub OAuth
+4. **Token Exchange**: Authorization code exchanged for access token
+5. **Session Creation**: Authenticated session established
+6. **API Access**: GitHub API calls made with user's permissions
 
-Note that while Cursor supports HTTP+SSE servers, it doesn't support authentication, so you still need to use `mcp-remote` (and to use a STDIO server, not an HTTP one).
+### Security Features
+- **Encrypted Token Storage**: All tokens encrypted in Cloudflare KV
+- **Secure Cookie Handling**: HTTP-only, secure cookies with encryption
+- **Rate Limit Management**: Built-in GitHub API rate limit handling
+- **Scope Minimization**: Only requests necessary GitHub permissions
+- **Access Control**: Role-based access for sensitive features
 
-You can connect your MCP server to other MCP clients like Windsurf by opening the client's configuration file, adding the same JSON that was used for the Claude setup, and restarting the MCP client.
+### Required GitHub Permissions
+- `repo`: Repository access for reading code and metadata
+- `read:org`: Organization information access
+- `read:repo_hook`: Repository webhook information
+- `read:project`: GitHub Projects v2 access
 
-## How does it work? 
+## ⚡ Performance & Optimization
 
-#### OAuth Provider
-The OAuth Provider library serves as a complete OAuth 2.1 server implementation for Cloudflare Workers. It handles the complexities of the OAuth flow, including token issuance, validation, and management. In this project, it plays the dual role of:
+### Caching Strategy
+- **API Response Caching**: 5-minute TTL for GitHub API responses
+- **Repository Metadata**: Cached for improved performance
+- **Project Information**: Cached to reduce API calls
+- **User Information**: Session-based caching
 
-- Authenticating MCP clients that connect to your server
-- Managing the connection to GitHub's OAuth services
-- Securely storing tokens and authentication state in KV storage
+### Rate Limit Handling
+- **Automatic Retry**: Exponential backoff for rate-limited requests
+- **Quota Monitoring**: Track and report API usage
+- **Efficient Batching**: Minimize API calls through intelligent batching
+- **Cache Utilization**: Prefer cached responses when available
 
-#### Durable MCP
-Durable MCP extends the base MCP functionality with Cloudflare's Durable Objects, providing:
-- Persistent state management for your MCP server
-- Secure storage of authentication context between requests
-- Access to authenticated user information via `this.props`
-- Support for conditional tool availability based on user identity
+## 🔧 Development
 
-#### MCP Remote
-The MCP Remote library enables your server to expose tools that can be invoked by MCP clients like the Inspector. It:
-- Defines the protocol for communication between clients and your server
-- Provides a structured way to define tools
-- Handles serialization and deserialization of requests and responses
-- Maintains the Server-Sent Events (SSE) connection between clients and your server
+### Local Development
+```bash
+# Start development server
+npm run dev
+
+# The server will be available at http://localhost:8787
+# Set up local GitHub OAuth app with callback: http://localhost:8787/callback
+
+# Create .dev.vars file for local environment
+GITHUB_CLIENT_ID=your_local_github_client_id
+GITHUB_CLIENT_SECRET=your_local_github_client_secret
+COOKIE_ENCRYPTION_KEY=your_encryption_key
+```
+
+### Testing
+```bash
+# Type checking
+npm run type-check
+
+# Generate Cloudflare Worker types
+npm run cf-typegen
+
+# Test with MCP Inspector
+npx @modelcontextprotocol/inspector@latest
+# Enter: http://localhost:8787/sse
+```
+
+### Project Structure
+```
+src/
+├── index.ts                  # Main MCP server implementation and tool definitions
+├── github-handler.ts         # OAuth authentication and GitHub integration
+├── github-api-service.ts     # GitHub API client and data processing
+├── types.ts                  # TypeScript type definitions
+├── utils.ts                  # Utility functions and helpers
+└── workers-oauth-utils.ts    # OAuth-specific utility functions
+
+wrangler.jsonc               # Cloudflare Workers configuration
+package.json                 # Dependencies and scripts
+worker-configuration.d.ts    # Generated TypeScript types
+```
+
+### Adding New Tools
+1. **Define Tool Schema**: Add tool definition in `src/index.ts`
+2. **Implement API Methods**: Add required methods to `github-api-service.ts`
+3. **Update Types**: Add type definitions in `types.ts`
+4. **Test Implementation**: Use MCP Inspector to test functionality
+5. **Update Documentation**: Add tool documentation to README
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### OAuth Authentication Fails
+- **Check GitHub OAuth App**: Verify Client ID and Secret
+- **Callback URL**: Ensure callback URL matches exactly
+- **Permissions**: Verify required GitHub scopes are granted
+
+#### Rate Limit Errors
+- **Monitor Usage**: Check GitHub API rate limits
+- **Implement Caching**: Use built-in caching features
+- **Reduce Frequency**: Optimize request patterns
+
+#### Connection Issues
+- **Network Connectivity**: Test basic HTTP connectivity
+- **Firewall Settings**: Check for blocked ports
+- **DNS Resolution**: Verify domain resolution
+
+### Debug Commands
+```bash
+# View real-time logs
+wrangler tail
+
+# Check deployment status
+wrangler deployments list
+
+# Test specific endpoints
+curl -I https://team-mcp.your-subdomain.workers.dev/sse
+
+# Validate configuration
+wrangler whoami
+```
+
+### Error Codes
+- **401 Unauthorized**: OAuth token invalid or expired
+- **403 Forbidden**: Insufficient permissions for requested resource
+- **404 Not Found**: Repository or organization not found
+- **429 Too Many Requests**: GitHub API rate limit exceeded
+
+## 🤝 Contributing
+
+### Development Setup
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes and add tests
+4. Run type checking: `npm run type-check`
+5. Submit a pull request
+
+### Code Style
+- Use TypeScript for all new code
+- Follow existing code patterns and conventions
+- Add proper error handling and logging
+- Include JSDoc comments for public APIs
+
+### Testing
+- Test all new tools with MCP Inspector
+- Verify OAuth flow works correctly
+- Check rate limit handling
+- Validate error responses
+
+## 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+For issues and questions:
+- **GitHub Issues**: Create an issue in this repository
+- **Documentation**: Check the troubleshooting section above
+- **Cloudflare Docs**: [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
+- **MCP Docs**: [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
+
+---
+
+**Built with ❤️ using Cloudflare Workers and the Model Context Protocol**
+
+*This MCP server provides secure, scalable access to GitHub's ecosystem for AI assistants and other MCP-compatible tools.*
