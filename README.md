@@ -22,6 +22,7 @@ A comprehensive Model Context Protocol (MCP) server built on Cloudflare Workers 
 - **Advanced Filtering**: Filter by state, author, labels, and custom criteria
 
 ### Additional Features
+- **EFP Dune Analytics**: Access real-time EFP statistics and blockchain analytics from Dune dashboards
 - **AI Image Generation**: Generate images using Flux-1-Schnell model (restricted access)
 - **Performance Optimization**: Built-in caching and rate limit handling
 - **Comprehensive Error Handling**: User-friendly error messages and debugging
@@ -277,6 +278,59 @@ Returns authenticated user information from GitHub.
 **Parameters:** None
 
 **Returns:** Complete GitHub user profile information
+
+#### `getEFPDuneStatistics`
+Fetches EFP (Ethereum Follow Protocol) statistics and analytics from Dune Analytics dashboard with real-time blockchain data.
+
+**Parameters:**
+- `target` (string, optional): Filter queries by name containing this text (fetches all EFP queries if not provided)
+
+**Setup Required:**
+- Requires `DUNE_API_KEY` environment variable in `wrangler.jsonc`  
+- Dune Analytics account with API access (Plus plan or higher recommended)
+- Uses main Dune API with `X-DUNE-API-KEY` authentication header
+
+**Data Available:**
+- EFP user statistics and growth metrics
+- Token activity and transaction analytics
+- Protocol usage and adoption trends
+- Real-time blockchain data aggregation
+
+**Example Usage:**
+```javascript
+// Get all EFP statistics (all 26 queries)
+const allStats = await getEFPDuneStatistics();
+
+// Filter for specific metrics
+const mintingStats = await getEFPDuneStatistics({
+  target: "minted"
+});
+
+// Get Base chain statistics only
+const baseStats = await getEFPDuneStatistics({
+  target: "Base"
+});
+
+// Get daily metrics
+const dailyStats = await getEFPDuneStatistics({
+  target: "daily"
+});
+```
+
+**Rate Limits:**
+- Free: 40 requests/minute
+- Plus: 200 requests/minute  
+- Premium: 1000 requests/minute
+
+**Configuration:**
+Add to your `wrangler.jsonc`:
+```json
+{
+  "vars": {
+    "DUNE_API_KEY": "your-dune-api-key"
+  }
+}
+```
 
 #### `generateImage` (Restricted Access)
 Generates images using Cloudflare's Flux-1-Schnell model.

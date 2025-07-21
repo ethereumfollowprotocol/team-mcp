@@ -477,21 +477,21 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       async ({ organization, includePrivate, limit }) => {
         try {
           const projects = await githubApi.getOrganizationProjects(organization);
-          
+
           // Filter by visibility if needed
           let filteredProjects = projects;
           if (!includePrivate) {
-            filteredProjects = projects.filter(project => project.visibility === "PUBLIC");
+            filteredProjects = projects.filter((project) => project.visibility === "PUBLIC");
           }
-          
+
           // Limit results
           const limitedProjects = filteredProjects.slice(0, limit);
-          
+
           const result = {
             organization,
             total_projects: filteredProjects.length,
             showing: limitedProjects.length,
-            projects: limitedProjects.map(project => ({
+            projects: limitedProjects.map((project) => ({
               id: project.id,
               number: project.number,
               title: project.title,
@@ -504,7 +504,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               url: project.url,
             })),
           };
-          
+
           return {
             content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
           };
@@ -529,7 +529,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       async ({ projectId, includeFields, includeItems, limit }) => {
         try {
           const projectDetails = await githubApi.getProjectDetails(projectId);
-          
+
           const result = {
             project: {
               id: projectDetails.project.id,
@@ -545,34 +545,38 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               total_items: projectDetails.totalItemsCount,
             },
             summary: projectDetails.summary,
-            fields: includeFields ? projectDetails.fields.map(field => ({
-              id: field.id,
-              name: field.name,
-              data_type: field.dataType,
-              options: field.options,
-            })) : [],
-            items: includeItems ? projectDetails.items.slice(0, limit).map(item => ({
-              id: item.id,
-              type: item.type,
-              title: item.content.title,
-              url: item.content.url,
-              number: item.content.number,
-              state: item.content.state,
-              body: item.content.body ? item.content.body.substring(0, 500) + (item.content.body.length > 500 ? "..." : "") : null,
-              author: item.content.author,
-              assignees: item.content.assignees,
-              labels: item.content.labels,
-              created_at: item.content.createdAt,
-              updated_at: item.content.updatedAt,
-              field_values: item.fieldValues.map(fv => ({
-                field_name: fv.field.name,
-                field_type: fv.field.type,
-                value: fv.value,
-              })),
-            })) : [],
+            fields: includeFields
+              ? projectDetails.fields.map((field) => ({
+                  id: field.id,
+                  name: field.name,
+                  data_type: field.dataType,
+                  options: field.options,
+                }))
+              : [],
+            items: includeItems
+              ? projectDetails.items.slice(0, limit).map((item) => ({
+                  id: item.id,
+                  type: item.type,
+                  title: item.content.title,
+                  url: item.content.url,
+                  number: item.content.number,
+                  state: item.content.state,
+                  body: item.content.body ? item.content.body.substring(0, 500) + (item.content.body.length > 500 ? "..." : "") : null,
+                  author: item.content.author,
+                  assignees: item.content.assignees,
+                  labels: item.content.labels,
+                  created_at: item.content.createdAt,
+                  updated_at: item.content.updatedAt,
+                  field_values: item.fieldValues.map((fv) => ({
+                    field_name: fv.field.name,
+                    field_type: fv.field.type,
+                    value: fv.value,
+                  })),
+                }))
+              : [],
             showing_items: includeItems ? Math.min(limit, projectDetails.items.length) : 0,
           };
-          
+
           return {
             content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
           };
@@ -584,35 +588,278 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
-    // Dynamically add tools based on the user's login. In this case, I want to limit
-    // access to team meetings tool to just me
-    if (ALLOWED_USERNAMES.has(this.props.login)) {
-      this.server.tool(
-        "generateImage",
-        "Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-        {
-          prompt: z.string().describe("A text description of the image you want to generate."),
-          steps: z
-            .number()
-            .min(4)
-            .max(8)
-            .default(4)
-            .describe(
-              "The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.",
-            ),
-        },
-        async ({ prompt, steps }) => {
-          const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-            prompt,
-            steps,
+    // Get EFP statistics from Dune Analytics
+    this.server.tool(
+      "getEFPDuneStatistics",
+      "Fetch EFP (Ethereum Follow Protocol) statistics and analytics from Dune Analytics dashboard",
+      {
+        searchQuery: z.string().optional().describe("Search for a specific Dune query by name (leave blank to get all queries)"),
+      },
+      async ({ searchQuery }: { searchQuery?: string }) => {
+        try {
+          const duneApiKey = this.env.DUNE_API_KEY;
+          if (!duneApiKey) {
+            return {
+              content: [
+                {
+                  text: JSON.stringify(
+                    {
+                      error: "Dune API key not configured",
+                      message: "DUNE_API_KEY environment variable is required but not set",
+                      setup_instructions: "Add DUNE_API_KEY to your wrangler.jsonc vars section",
+                    },
+                    null,
+                    2,
+                  ),
+                  type: "text",
+                },
+              ],
+            };
+          }
+
+          const queries = [
+            {
+              name: "Total lists minted",
+              queryId: "4109395",
+            },
+            {
+              name: "Lists minted in last 30 days",
+              queryId: "4122608",
+            },
+            {
+              name: "Lists minted in last 1 day",
+              queryId: "4118679",
+            },
+            {
+              name: "Lists minted per day in last 30 days",
+              queryId: "4128848",
+            },
+            {
+              name: "Unique lists minted in last 12 months",
+              queryId: "4128852",
+            },
+            {
+              name: "Total unique lists minted",
+              queryId: "4109396",
+            },
+            {
+              name: "Unique lists minted in last 30 days",
+              queryId: "4122666",
+            },
+            {
+              name: "Unique minters per month in last 12 months",
+              queryId: "4128901",
+            },
+            {
+              name: "Unique minters per day in last 30 days",
+              queryId: "4128889",
+            },
+            {
+              name: "Total list ops (Base)",
+              queryId: "4128833",
+            },
+            {
+              name: "Total list ops (Base) in last 30 days",
+              queryId: "4122661",
+            },
+            {
+              name: "Total list ops (Base) in last 24 hours",
+              queryId: "4118691",
+            },
+            {
+              name: "Total list ops (Base) per day in last 30 days",
+              queryId: "4128836",
+            },
+            {
+              name: "Total list ops (Base) per month in last 12 months",
+              queryId: "4128937",
+            },
+            {
+              name: "Total list ops (Optimism)",
+              queryId: "4128834",
+            },
+            {
+              name: "Total list ops (Optimism) in last 30 days",
+              queryId: "4122777",
+            },
+            {
+              name: "Total list ops (Optimism) in last 24 hours",
+              queryId: "4118836",
+            },
+            {
+              name: "Total list ops (Optimism) per day in last 30 days",
+              queryId: "4122751",
+            },
+            {
+              name: "Total list ops (Optimism) per month in last 12 months",
+              queryId: "4128942",
+            },
+            {
+              name: "Total list ops (Ethereum Mainnet)",
+              queryId: "4128835",
+            },
+            {
+              name: "Total list ops (Ethereum Mainnet) in last 30 days",
+              queryId: "4122786",
+            },
+            {
+              name: "Total list ops (Ethereum Mainnet) in last 24 hours",
+              queryId: "4118840",
+            },
+            {
+              name: "Total list ops (Ethereum Mainnet) per day in last 30 days",
+              queryId: "4122769",
+            },
+            {
+              name: "Total list ops (Ethereum Mainnet) per month in last 12 months",
+              queryId: "4128944",
+            },
+            {
+              name: "Running total daily unique list minters",
+              queryId: "4592634",
+            },
+            {
+              name: "Running total list ops all chains all time",
+              queryId: "4592577",
+            },
+            {
+              name: "Total list ops (All chains)",
+              queryId: "4142209",
+            },
+            {
+              name: "Daily active users",
+              queryId: "4150180",
+            },
+          ];
+
+          // Filter queries based on target if provided
+          const filteredQueries = searchQuery ? queries.filter((q) => q.name.toLowerCase().includes(searchQuery.toLowerCase())) : queries;
+
+          if (filteredQueries.length === 0) {
+            return {
+              content: [
+                {
+                  text: JSON.stringify(
+                    {
+                      message: searchQuery ? `No queries found matching: "${searchQuery}"` : "No queries available",
+                      available_queries: queries.map((q) => q.name),
+                    },
+                    null,
+                    2,
+                  ),
+                  type: "text",
+                },
+              ],
+            };
+          }
+
+          // Fetch results for each query individually with error handling
+          const results = await Promise.allSettled(
+            filteredQueries.map(async (query) => {
+              try {
+                const resultsResponse = await fetch(`https://api.dune.com/api/v1/query/${query.queryId}/results?limit=1000`, {
+                  method: "GET",
+                  headers: {
+                    "X-Dune-API-Key": duneApiKey,
+                  },
+                });
+
+                if (!resultsResponse.ok) {
+                  const errorText = await resultsResponse.text();
+                  return {
+                    query_name: query.name,
+                    query_id: query.queryId,
+                    status: "error",
+                    error: `HTTP ${resultsResponse.status}`,
+                    details: errorText,
+                  };
+                }
+
+                const data = (await resultsResponse.json()) as any;
+
+                return {
+                  query_name: query.name,
+                  query_id: query.queryId,
+                  status: "success",
+                  data: data.result || data,
+                };
+              } catch (error) {
+                return {
+                  query_name: query.name,
+                  query_id: query.queryId,
+                  status: "error",
+                  error: error instanceof Error ? error.message : String(error),
+                };
+              }
+            }),
+          );
+
+          // Process results and separate successful from failed queries
+          const processedResults = results.map((result, index) => {
+            if (result.status === "fulfilled") {
+              return result.value;
+            } else {
+              return {
+                query_name: filteredQueries[index].name,
+                query_id: filteredQueries[index].queryId,
+                status: "error",
+                error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+              };
+            }
           });
 
-          return {
-            content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
+          const successfulQueries = processedResults.filter((r) => r.status === "success");
+          const failedQueries = processedResults.filter((r) => r.status === "error");
+
+          const response = {
+            source: "Dune Analytics",
+            dashboard_url: "https://dune.com/throw_efp/efp",
+            total_queries_requested: filteredQueries.length,
+            successful_queries: successfulQueries.length,
+            failed_queries: failedQueries.length,
+            results: processedResults,
           };
-        },
-      );
-    }
+
+          return {
+            content: [{ text: JSON.stringify(response, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error fetching EFP Dune statistics: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Dynamically add tools based on the user's login. In this case, I want to limit
+    // access to team meetings tool to just me
+    // if (ALLOWED_USERNAMES.has(this.props.login)) {
+    //   this.server.tool(
+    //     "generateImage",
+    //     "Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
+    //     {
+    //       prompt: z.string().describe("A text description of the image you want to generate."),
+    //       steps: z
+    //         .number()
+    //         .min(4)
+    //         .max(8)
+    //         .default(4)
+    //         .describe(
+    //           "The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.",
+    //         ),
+    //     },
+    //     async ({ prompt, steps }) => {
+    //       const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+    //         prompt,
+    //         steps,
+    //       });
+
+    //       return {
+    //         content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
+    //       };
+    //     },
+    //   );
+    // }
   }
 }
 
