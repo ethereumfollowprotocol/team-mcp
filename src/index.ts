@@ -5,6 +5,7 @@ import { Octokit } from "octokit";
 import { z } from "zod";
 import { GitHubHandler } from "./github-handler";
 import { GitHubApiService } from "./github-api-service";
+import { FinancialReportsService } from "./financial-reports-service";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -15,20 +16,18 @@ type Props = {
   accessToken: string;
 };
 
-const ALLOWED_USERNAMES = new Set<string>([
-  // Add GitHub usernames of users who should have access to the image generation tool
-  // For example: 'yourusername', 'coworkerusername'
-]);
-
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
   server = new McpServer({
-    name: "Github OAuth Proxy Demo",
+    name: "Team MCP",
     version: "1.0.0",
   });
 
   async init() {
     // Initialize GitHub API service
     const githubApi = new GitHubApiService(this.props.accessToken);
+
+    // Initialize financial reports service
+    const financialReportsService = new FinancialReportsService(this.env);
 
     // Use the upstream access token to facilitate tools
     this.server.tool("userInfoOctokit", "Get user info from GitHub, via Octokit", {}, async () => {
@@ -831,35 +830,298 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
-    // Dynamically add tools based on the user's login. In this case, I want to limit
-    // access to team meetings tool to just me
-    // if (ALLOWED_USERNAMES.has(this.props.login)) {
-    //   this.server.tool(
-    //     "generateImage",
-    //     "Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-    //     {
-    //       prompt: z.string().describe("A text description of the image you want to generate."),
-    //       steps: z
-    //         .number()
-    //         .min(4)
-    //         .max(8)
-    //         .default(4)
-    //         .describe(
-    //           "The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.",
-    //         ),
-    //     },
-    //     async ({ prompt, steps }) => {
-    //       const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-    //         prompt,
-    //         steps,
-    //       });
+    // Quick financial report tool (no OCR)
+    this.server.tool(
+      "getFinancialReportQuick", 
+      "Get pre-cached financial report data (fast, no OCR required)",
+      {
+        quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]).describe("The quarter (Q1, Q2, Q3, or Q4)"),
+        year: z.number().min(2024).max(2025).describe("The year (2024 or 2025)"),
+      },
+      async ({ quarter, year }) => {
+        try {
+          const report = await financialReportsService.getReportByQuarter(quarter, year);
+          
+          if (!report) {
+            return {
+              content: [{
+                text: JSON.stringify({
+                  error: "Report not found",
+                  message: `No financial report found for ${year} ${quarter}`,
+                }, null, 2),
+                type: "text"
+              }],
+            };
+          }
 
-    //       return {
-    //         content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
-    //       };
-    //     },
-    //   );
-    // }
+          const result = {
+            period: `${year} ${quarter}`,
+            report_url: `https://discuss.ens.domains/t/eif-efp-spp-financial-and-progress-reports/20102`,
+            image_urls: report.imageUrls,
+            has_cached_data: !!report.extractedData,
+            message: report.extractedData 
+              ? "Pre-cached data available" 
+              : "No cached data - use getFinancialReport with forceRefresh=false for OCR extraction",
+            cached_data: report.extractedData || null
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error: ${error.message}`, type: "text" }],
+          };
+        }
+      }
+    );
+
+    this.server.tool("listFinancialReports", "List all available financial reports by quarter", {}, async () => {
+      try {
+        const reports = await financialReportsService.getAvailableReports();
+
+        const result = {
+          total_reports: reports.length,
+          reports: reports
+            .map((report) => ({
+              quarter: report.quarter,
+              year: report.year,
+              period: `${report.year} ${report.quarter}`,
+            }))
+            .sort((a, b) => {
+              // Sort by year and quarter
+              if (a.year !== b.year) return b.year - a.year;
+              const quarterOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+              return quarterOrder[b.quarter as keyof typeof quarterOrder] - quarterOrder[a.quarter as keyof typeof quarterOrder];
+            }),
+        };
+
+        return {
+          content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+        };
+      } catch (error: any) {
+        return {
+          content: [{ text: `Error listing financial reports: ${error.message}`, type: "text" }],
+        };
+      }
+    });
+
+    // Get specific financial report
+    this.server.tool(
+      "getFinancialReport",
+      "Extract and retrieve financial data from a specific quarterly report",
+      {
+        quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]).describe("The quarter (Q1, Q2, Q3, or Q4)"),
+        year: z.number().min(2024).max(2025).describe("The year (2024 or 2025)"),
+        forceRefresh: z.boolean().optional().default(false).describe("Force re-extraction of data from images"),
+      },
+      async ({ quarter, year, forceRefresh }) => {
+        try {
+          let report = await financialReportsService.getReportByQuarter(quarter, year);
+
+          if (!report) {
+            return {
+              content: [
+                {
+                  text: JSON.stringify(
+                    {
+                      error: "Report not found",
+                      message: `No financial report found for ${year} ${quarter}`,
+                    },
+                    null,
+                    2,
+                  ),
+                  type: "text",
+                },
+              ],
+            };
+          }
+
+          // Extract data if not already cached or if force refresh is requested
+          if (!report.extractedData || forceRefresh) {
+            report = await financialReportsService.processAndCacheReport(quarter, year);
+          }
+
+          const result = {
+            period: `${year} ${quarter}`,
+            report_details: {
+              quarter: report!.quarter,
+              year: report!.year,
+              image_count: report!.imageUrls.length,
+            },
+            financial_data: report!.extractedData
+              ? {
+                  revenue: report!.extractedData.revenue,
+                  expenses: report!.extractedData.expenses,
+                  net_income: report!.extractedData.netIncome,
+                  gross_profit: report!.extractedData.grossProfit,
+                  operating_income: report!.extractedData.operatingIncome,
+                  assets: report!.extractedData.assets,
+                  liabilities: report!.extractedData.liabilities,
+                  equity: report!.extractedData.equity,
+                  cash_flow: report!.extractedData.cashFlow,
+                  additional_metrics: report!.extractedData.customMetrics,
+                }
+              : null,
+            raw_text_preview: report!.extractedData ? report!.extractedData.rawText : "No data extracted yet",
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error retrieving financial report: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "compareFinancialReports",
+      "Compare financial metrics across multiple quarters",
+      {
+        quarters: z
+          .array(
+            z.object({
+              quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]),
+              year: z.number().min(2024).max(2025),
+            }),
+          )
+          .min(2)
+          .max(5)
+          .describe("Array of quarters to compare (2-5 quarters)"),
+        metrics: z.array(z.string()).optional().describe("Specific metrics to compare (leave empty for all)"),
+      },
+      async ({ quarters, metrics }) => {
+        try {
+          // Process all reports
+          const reports = await Promise.all(
+            quarters.map(async (q) => {
+              const report = await financialReportsService.processAndCacheReport(q.quarter, q.year);
+              return { quarter: q, report };
+            }),
+          );
+
+          const validReports = reports.filter((r) => r.report !== null && r.report.extractedData);
+
+          if (validReports.length === 0) {
+            return {
+              content: [
+                {
+                  text: JSON.stringify(
+                    {
+                      error: "No valid reports found",
+                      message: "Could not find or extract data from any of the specified quarters",
+                      requested_quarters: quarters,
+                    },
+                    null,
+                    2,
+                  ),
+                  type: "text",
+                },
+              ],
+            };
+          }
+
+          // Default metrics if none specified
+          const metricsToCompare =
+            metrics && metrics.length > 0
+              ? metrics
+              : ["revenue", "expenses", "netIncome", "assets", "eth_value", "ens_value", "usdc_holdings"];
+
+          // Build comparison data
+          const comparison: any = {
+            periods: validReports.map((r) => `${r.quarter.year} ${r.quarter.quarter}`),
+            metrics_comparison: {},
+            available_metrics: new Set<string>(),
+          };
+
+          // Collect all available metrics
+          validReports.forEach(({ report }) => {
+            if (report?.extractedData) {
+              // Standard metrics
+              Object.keys(report.extractedData).forEach((key) => {
+                // @ts-ignore
+                if (key !== "rawText" && key !== "customMetrics" && report.extractedData![key as keyof ExtractedFinancialData]) {
+                  comparison.available_metrics.add(key);
+                }
+              });
+              // Custom metrics
+              if (report.extractedData.customMetrics) {
+                Object.keys(report.extractedData.customMetrics).forEach((key) => {
+                  comparison.available_metrics.add(key);
+                });
+              }
+            }
+          });
+
+          // Compare each metric
+          for (const metric of metricsToCompare) {
+            comparison.metrics_comparison[metric] = validReports.map(({ quarter, report }) => {
+              let value = null;
+
+              if (report?.extractedData) {
+                // Check standard metrics
+                if (metric in report.extractedData && metric !== "customMetrics" && metric !== "rawText") {
+                  // @ts-ignore
+                  value = report.extractedData[metric as keyof ExtractedFinancialData];
+                }
+                // Check custom metrics
+                else if (report.extractedData.customMetrics && metric in report.extractedData.customMetrics) {
+                  value = report.extractedData.customMetrics[metric];
+                }
+              }
+
+              return {
+                period: `${quarter.year} ${quarter.quarter}`,
+                value: value,
+                formatted:
+                  value !== null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A",
+              };
+            });
+          }
+
+          // Calculate growth rates for metrics with at least 2 valid values
+          comparison.growth_rates = {};
+          for (const metric of metricsToCompare) {
+            const values = comparison.metrics_comparison[metric]
+              .map((item: any) => item.value)
+              .filter((v: any) => v !== null && v !== undefined);
+
+            if (values.length >= 2) {
+              const firstValue = values[0];
+              const lastValue = values[values.length - 1];
+
+              comparison.growth_rates[metric] = {
+                absolute_change: lastValue - firstValue,
+                percentage_change: firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : null,
+                period: `${validReports[0].quarter.year} ${validReports[0].quarter.quarter} to ${validReports[validReports.length - 1].quarter.year} ${validReports[validReports.length - 1].quarter.quarter}`,
+                trend: lastValue > firstValue ? "increasing" : lastValue < firstValue ? "decreasing" : "stable",
+              };
+            }
+          }
+
+          // Convert Set to Array for JSON serialization
+          comparison.available_metrics = Array.from(comparison.available_metrics);
+
+          // Add summary
+          comparison.summary = {
+            reports_analyzed: validReports.length,
+            metrics_compared: Object.keys(comparison.metrics_comparison).length,
+            metrics_with_growth_data: Object.keys(comparison.growth_rates).length,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(comparison, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error comparing financial reports: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
   }
 }
 

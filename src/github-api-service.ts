@@ -1,329 +1,293 @@
 import { Octokit } from "octokit";
 import type {
-	GitHubRepository,
-	GitHubCommit,
-	GitHubIssue,
-	GitHubPullRequest,
-	GitHubContributor,
-	RepositoryActivity,
-	OrganizationSummary,
-	GitHubApiOptions,
-	GitHubProjectV2,
-	GitHubProjectV2Details,
-	GitHubProjectV2Item,
-	GitHubProjectV2Field,
+  GitHubRepository,
+  GitHubCommit,
+  GitHubIssue,
+  GitHubPullRequest,
+  GitHubContributor,
+  RepositoryActivity,
+  OrganizationSummary,
+  GitHubProjectV2,
+  GitHubProjectV2Details,
 } from "./types";
 
 export class GitHubApiService {
-	private octokit: Octokit;
-	private cache: Map<string, { data: any; timestamp: number }> = new Map();
-	private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private octokit: Octokit;
+  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-	constructor(accessToken: string) {
-		this.octokit = new Octokit({ auth: accessToken });
-	}
+  constructor(accessToken: string) {
+    this.octokit = new Octokit({ auth: accessToken });
+  }
 
-	private getCacheKey(method: string, params: any): string {
-		return `${method}:${JSON.stringify(params)}`;
-	}
+  private getCacheKey(method: string, params: any): string {
+    return `${method}:${JSON.stringify(params)}`;
+  }
 
-	private getFromCache<T>(key: string): T | null {
-		const cached = this.cache.get(key);
-		if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-			return cached.data as T;
-		}
-		return null;
-	}
+  private getFromCache<T>(key: string): T | null {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data as T;
+    }
+    return null;
+  }
 
-	private setCache(key: string, data: any): void {
-		this.cache.set(key, { data, timestamp: Date.now() });
-	}
+  private setCache(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
 
-	private async paginate<T>(
-		endpoint: any,
-		params: any,
-		maxPages: number = 10
-	): Promise<T[]> {
-		const results: T[] = [];
-		let page = 1;
-		
-		while (page <= maxPages) {
-			const response = await endpoint({
-				...params,
-				per_page: 100,
-				page,
-			});
-			
-			const data = response.data;
-			if (!Array.isArray(data) || data.length === 0) {
-				break;
-			}
-			
-			results.push(...data);
-			
-			if (data.length < 100) {
-				break;
-			}
-			
-			page++;
-		}
-		
-		return results;
-	}
+  private async paginate<T>(endpoint: any, params: any, maxPages: number = 10): Promise<T[]> {
+    const results: T[] = [];
+    let page = 1;
 
-	async getOrganizationRepositories(
-		org: string,
-		includePrivate: boolean = true
-	): Promise<GitHubRepository[]> {
-		const cacheKey = this.getCacheKey("getOrganizationRepositories", { org, includePrivate });
-		const cached = this.getFromCache<GitHubRepository[]>(cacheKey);
-		if (cached) return cached;
+    while (page <= maxPages) {
+      const response = await endpoint({
+        ...params,
+        per_page: 100,
+        page,
+      });
 
-		try {
-			const repos = await this.paginate<GitHubRepository>(
-				this.octokit.rest.repos.listForOrg,
-				{
-					org,
-					type: includePrivate ? "all" : "public",
-					sort: "updated",
-					direction: "desc",
-				}
-			);
+      const data = response.data;
+      if (!Array.isArray(data) || data.length === 0) {
+        break;
+      }
 
-			this.setCache(cacheKey, repos);
-			return repos;
-		} catch (error: any) {
-			throw new Error(`Failed to fetch repositories for organization ${org}: ${error.message}`);
-		}
-	}
+      results.push(...data);
 
-	async getRecentCommits(
-		owner: string,
-		repo: string,
-		since?: string,
-		branch?: string
-	): Promise<GitHubCommit[]> {
-		const cacheKey = this.getCacheKey("getRecentCommits", { owner, repo, since, branch });
-		const cached = this.getFromCache<GitHubCommit[]>(cacheKey);
-		if (cached) return cached;
+      if (data.length < 100) {
+        break;
+      }
 
-		try {
-			const params: any = {
-				owner,
-				repo,
-				per_page: 100,
-			};
+      page++;
+    }
 
-			if (since) params.since = since;
-			if (branch) params.sha = branch;
+    return results;
+  }
 
-			const commits = await this.paginate<GitHubCommit>(
-				this.octokit.rest.repos.listCommits,
-				params,
-				5 // Limit to 5 pages for performance
-			);
+  async getOrganizationRepositories(org: string, includePrivate: boolean = true): Promise<GitHubRepository[]> {
+    const cacheKey = this.getCacheKey("getOrganizationRepositories", { org, includePrivate });
+    const cached = this.getFromCache<GitHubRepository[]>(cacheKey);
+    if (cached) return cached;
 
-			this.setCache(cacheKey, commits);
-			return commits;
-		} catch (error: any) {
-			console.error(`Failed to fetch commits for ${owner}/${repo}:`, error.message);
-			return [];
-		}
-	}
+    try {
+      const repos = await this.paginate<GitHubRepository>(this.octokit.rest.repos.listForOrg, {
+        org,
+        type: includePrivate ? "all" : "public",
+        sort: "updated",
+        direction: "desc",
+      });
 
-	async getRepositoryIssues(
-		owner: string,
-		repo: string,
-		state: "open" | "closed" | "all" = "all",
-		since?: string
-	): Promise<GitHubIssue[]> {
-		const cacheKey = this.getCacheKey("getRepositoryIssues", { owner, repo, state, since });
-		const cached = this.getFromCache<GitHubIssue[]>(cacheKey);
-		if (cached) return cached;
+      this.setCache(cacheKey, repos);
+      return repos;
+    } catch (error: any) {
+      throw new Error(`Failed to fetch repositories for organization ${org}: ${error.message}`);
+    }
+  }
 
-		try {
-			const params: any = {
-				owner,
-				repo,
-				state,
-				sort: "updated",
-				direction: "desc",
-			};
+  async getRecentCommits(owner: string, repo: string, since?: string, branch?: string): Promise<GitHubCommit[]> {
+    const cacheKey = this.getCacheKey("getRecentCommits", { owner, repo, since, branch });
+    const cached = this.getFromCache<GitHubCommit[]>(cacheKey);
+    if (cached) return cached;
 
-			if (since) params.since = since;
+    try {
+      const params: any = {
+        owner,
+        repo,
+        per_page: 100,
+      };
 
-			const issues = await this.paginate<GitHubIssue>(
-				this.octokit.rest.issues.listForRepo,
-				params,
-				3 // Limit to 3 pages for performance
-			);
+      if (since) params.since = since;
+      if (branch) params.sha = branch;
 
-			this.setCache(cacheKey, issues);
-			return issues;
-		} catch (error: any) {
-			console.error(`Failed to fetch issues for ${owner}/${repo}:`, error.message);
-			return [];
-		}
-	}
+      const commits = await this.paginate<GitHubCommit>(
+        this.octokit.rest.repos.listCommits,
+        params,
+        5, // Limit to 5 pages for performance
+      );
 
-	async getRepositoryPullRequests(
-		owner: string,
-		repo: string,
-		state: "open" | "closed" | "all" = "all"
-	): Promise<GitHubPullRequest[]> {
-		const cacheKey = this.getCacheKey("getRepositoryPullRequests", { owner, repo, state });
-		const cached = this.getFromCache<GitHubPullRequest[]>(cacheKey);
-		if (cached) return cached;
+      this.setCache(cacheKey, commits);
+      return commits;
+    } catch (error: any) {
+      console.error(`Failed to fetch commits for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
 
-		try {
-			const prs = await this.paginate<GitHubPullRequest>(
-				this.octokit.rest.pulls.list,
-				{
-					owner,
-					repo,
-					state,
-					sort: "updated",
-					direction: "desc",
-				},
-				3 // Limit to 3 pages for performance
-			);
+  async getRepositoryIssues(owner: string, repo: string, state: "open" | "closed" | "all" = "all", since?: string): Promise<GitHubIssue[]> {
+    const cacheKey = this.getCacheKey("getRepositoryIssues", { owner, repo, state, since });
+    const cached = this.getFromCache<GitHubIssue[]>(cacheKey);
+    if (cached) return cached;
 
-			this.setCache(cacheKey, prs);
-			return prs;
-		} catch (error: any) {
-			console.error(`Failed to fetch pull requests for ${owner}/${repo}:`, error.message);
-			return [];
-		}
-	}
+    try {
+      const params: any = {
+        owner,
+        repo,
+        state,
+        sort: "updated",
+        direction: "desc",
+      };
 
-	async getContributors(owner: string, repo: string): Promise<GitHubContributor[]> {
-		const cacheKey = this.getCacheKey("getContributors", { owner, repo });
-		const cached = this.getFromCache<GitHubContributor[]>(cacheKey);
-		if (cached) return cached;
+      if (since) params.since = since;
 
-		try {
-			const contributors = await this.paginate<GitHubContributor>(
-				this.octokit.rest.repos.listContributors,
-				{
-					owner,
-					repo,
-				},
-				2 // Limit to 2 pages for performance
-			);
+      const issues = await this.paginate<GitHubIssue>(
+        this.octokit.rest.issues.listForRepo,
+        params,
+        3, // Limit to 3 pages for performance
+      );
 
-			this.setCache(cacheKey, contributors);
-			return contributors;
-		} catch (error: any) {
-			console.error(`Failed to fetch contributors for ${owner}/${repo}:`, error.message);
-			return [];
-		}
-	}
+      this.setCache(cacheKey, issues);
+      return issues;
+    } catch (error: any) {
+      console.error(`Failed to fetch issues for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
 
-	async getRepositoryActivity(
-		repository: GitHubRepository,
-		daysSince: number = 7
-	): Promise<RepositoryActivity> {
-		const sinceDate = new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString();
-		
-		const [commits, issues, prs, contributors] = await Promise.all([
-			this.getRecentCommits(repository.owner.login, repository.name, sinceDate),
-			this.getRepositoryIssues(repository.owner.login, repository.name, "open"),
-			this.getRepositoryPullRequests(repository.owner.login, repository.name, "open"),
-			this.getContributors(repository.owner.login, repository.name),
-		]);
+  async getRepositoryPullRequests(owner: string, repo: string, state: "open" | "closed" | "all" = "all"): Promise<GitHubPullRequest[]> {
+    const cacheKey = this.getCacheKey("getRepositoryPullRequests", { owner, repo, state });
+    const cached = this.getFromCache<GitHubPullRequest[]>(cacheKey);
+    if (cached) return cached;
 
-		const openIssues = issues.filter(issue => !issue.pull_request);
-		const openPrs = prs;
+    try {
+      const prs = await this.paginate<GitHubPullRequest>(
+        this.octokit.rest.pulls.list,
+        {
+          owner,
+          repo,
+          state,
+          sort: "updated",
+          direction: "desc",
+        },
+        3, // Limit to 3 pages for performance
+      );
 
-		return {
-			repository,
-			recent_commits: commits.slice(0, 10), // Limit to 10 most recent commits
-			commit_count: commits.length,
-			contributor_count: contributors.length,
-			top_contributors: contributors.slice(0, 5), // Top 5 contributors
-			open_issues: openIssues.length,
-			open_prs: openPrs.length,
-			last_activity: commits.length > 0 ? commits[0].commit.committer.date : repository.updated_at,
-		};
-	}
+      this.setCache(cacheKey, prs);
+      return prs;
+    } catch (error: any) {
+      console.error(`Failed to fetch pull requests for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
 
-	async getOrganizationActivity(
-		org: string,
-		daysSince: number = 7,
-		includePrivate: boolean = true
-	): Promise<OrganizationSummary> {
-		const repos = await this.getOrganizationRepositories(org, includePrivate);
-		const activities: RepositoryActivity[] = [];
+  async getContributors(owner: string, repo: string): Promise<GitHubContributor[]> {
+    const cacheKey = this.getCacheKey("getContributors", { owner, repo });
+    const cached = this.getFromCache<GitHubContributor[]>(cacheKey);
+    if (cached) return cached;
 
-		// Process repositories in batches to avoid rate limits
-		const batchSize = 5;
-		for (let i = 0; i < repos.length; i += batchSize) {
-			const batch = repos.slice(i, i + batchSize);
-			const batchActivities = await Promise.all(
-				batch.map(repo => this.getRepositoryActivity(repo, daysSince))
-			);
-			activities.push(...batchActivities);
-		}
+    try {
+      const contributors = await this.paginate<GitHubContributor>(
+        this.octokit.rest.repos.listContributors,
+        {
+          owner,
+          repo,
+        },
+        2, // Limit to 2 pages for performance
+      );
 
-		// Filter to only include repositories with recent activity
-		const activeRepos = activities.filter(activity => activity.commit_count > 0);
-		const totalCommits = activeRepos.reduce((sum, activity) => sum + activity.commit_count, 0);
+      this.setCache(cacheKey, contributors);
+      return contributors;
+    } catch (error: any) {
+      console.error(`Failed to fetch contributors for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
 
-		const summary = `${activeRepos.length} out of ${repos.length} repositories had activity in the last ${daysSince} days with ${totalCommits} total commits.`;
+  async getRepositoryActivity(repository: GitHubRepository, daysSince: number = 7): Promise<RepositoryActivity> {
+    const sinceDate = new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString();
 
-		return {
-			organization: org,
-			repositories: activeRepos.sort((a, b) => b.commit_count - a.commit_count),
-			total_repos: repos.length,
-			active_repos: activeRepos.length,
-			total_commits: totalCommits,
-			summary,
-		};
-	}
+    const [commits, issues, prs, contributors] = await Promise.all([
+      this.getRecentCommits(repository.owner.login, repository.name, sinceDate),
+      this.getRepositoryIssues(repository.owner.login, repository.name, "open"),
+      this.getRepositoryPullRequests(repository.owner.login, repository.name, "open"),
+      this.getContributors(repository.owner.login, repository.name),
+    ]);
 
-	async searchIssuesAndPRs(
-		org: string,
-		query: string,
-		state: "open" | "closed" | "all" = "all"
-	): Promise<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }> {
-		const cacheKey = this.getCacheKey("searchIssuesAndPRs", { org, query, state });
-		const cached = this.getFromCache<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }>(cacheKey);
-		if (cached) return cached;
+    const openIssues = issues.filter((issue) => !issue.pull_request);
+    const openPrs = prs;
 
-		try {
-			const searchQuery = `org:${org} ${query} ${state !== "all" ? `state:${state}` : ""}`;
-			
-			const [issuesResponse, prsResponse] = await Promise.all([
-				this.octokit.rest.search.issuesAndPullRequests({
-					q: `${searchQuery} type:issue`,
-					per_page: 100,
-				}),
-				this.octokit.rest.search.issuesAndPullRequests({
-					q: `${searchQuery} type:pr`,
-					per_page: 100,
-				}),
-			]);
+    return {
+      repository,
+      recent_commits: commits.slice(0, 10), // Limit to 10 most recent commits
+      commit_count: commits.length,
+      contributor_count: contributors.length,
+      top_contributors: contributors.slice(0, 5), // Top 5 contributors
+      open_issues: openIssues.length,
+      open_prs: openPrs.length,
+      last_activity: commits.length > 0 ? commits[0].commit.committer.date : repository.updated_at,
+    };
+  }
 
-			const result = {
-				issues: issuesResponse.data.items.filter(item => !item.pull_request) as GitHubIssue[],
-				pull_requests: prsResponse.data.items as any[] as GitHubPullRequest[],
-			};
+  async getOrganizationActivity(org: string, daysSince: number = 7, includePrivate: boolean = true): Promise<OrganizationSummary> {
+    const repos = await this.getOrganizationRepositories(org, includePrivate);
+    const activities: RepositoryActivity[] = [];
 
-			this.setCache(cacheKey, result);
-			return result;
-		} catch (error: any) {
-			throw new Error(`Failed to search issues and PRs in organization ${org}: ${error.message}`);
-		}
-	}
+    // Process repositories in batches to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < repos.length; i += batchSize) {
+      const batch = repos.slice(i, i + batchSize);
+      const batchActivities = await Promise.all(batch.map((repo) => this.getRepositoryActivity(repo, daysSince)));
+      activities.push(...batchActivities);
+    }
 
-	// GitHub Projects v2 API methods using GraphQL
-	async getOrganizationProjects(org: string): Promise<GitHubProjectV2[]> {
-		const cacheKey = this.getCacheKey("getOrganizationProjects", { org });
-		const cached = this.getFromCache<GitHubProjectV2[]>(cacheKey);
-		if (cached) return cached;
+    // Filter to only include repositories with recent activity
+    const activeRepos = activities.filter((activity) => activity.commit_count > 0);
+    const totalCommits = activeRepos.reduce((sum, activity) => sum + activity.commit_count, 0);
 
-		try {
-			const query = `
+    const summary = `${activeRepos.length} out of ${repos.length} repositories had activity in the last ${daysSince} days with ${totalCommits} total commits.`;
+
+    return {
+      organization: org,
+      repositories: activeRepos.sort((a, b) => b.commit_count - a.commit_count),
+      total_repos: repos.length,
+      active_repos: activeRepos.length,
+      total_commits: totalCommits,
+      summary,
+    };
+  }
+
+  async searchIssuesAndPRs(
+    org: string,
+    query: string,
+    state: "open" | "closed" | "all" = "all",
+  ): Promise<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }> {
+    const cacheKey = this.getCacheKey("searchIssuesAndPRs", { org, query, state });
+    const cached = this.getFromCache<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const searchQuery = `org:${org} ${query} ${state !== "all" ? `state:${state}` : ""}`;
+
+      const [issuesResponse, prsResponse] = await Promise.all([
+        this.octokit.rest.search.issuesAndPullRequests({
+          q: `${searchQuery} type:issue`,
+          per_page: 100,
+        }),
+        this.octokit.rest.search.issuesAndPullRequests({
+          q: `${searchQuery} type:pr`,
+          per_page: 100,
+        }),
+      ]);
+
+      const result = {
+        issues: issuesResponse.data.items.filter((item) => !item.pull_request) as GitHubIssue[],
+        pull_requests: prsResponse.data.items as any[] as GitHubPullRequest[],
+      };
+
+      this.setCache(cacheKey, result);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Failed to search issues and PRs in organization ${org}: ${error.message}`);
+    }
+  }
+
+  // GitHub Projects v2 API methods using GraphQL
+  async getOrganizationProjects(org: string): Promise<GitHubProjectV2[]> {
+    const cacheKey = this.getCacheKey("getOrganizationProjects", { org });
+    const cached = this.getFromCache<GitHubProjectV2[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const query = `
 				query($org: String!) {
 					organization(login: $org) {
 						projectsV2(first: 100) {
@@ -345,57 +309,57 @@ export class GitHubApiService {
 				}
 			`;
 
-			const response = await this.octokit.graphql<{
-				organization: {
-					projectsV2: {
-						nodes: Array<{
-							id: string;
-							number: number;
-							title: string;
-							url: string;
-							public: boolean;
-							closed: boolean;
-							createdAt: string;
-							updatedAt: string;
-							items: {
-								totalCount: number;
-							};
-						}>;
-					};
-				};
-			}>(query, { org });
+      const response = await this.octokit.graphql<{
+        organization: {
+          projectsV2: {
+            nodes: Array<{
+              id: string;
+              number: number;
+              title: string;
+              url: string;
+              public: boolean;
+              closed: boolean;
+              createdAt: string;
+              updatedAt: string;
+              items: {
+                totalCount: number;
+              };
+            }>;
+          };
+        };
+      }>(query, { org });
 
-			const projects: GitHubProjectV2[] = response.organization.projectsV2.nodes.map(project => ({
-				id: project.id,
-				number: project.number,
-				title: project.title,
-				url: project.url,
-				description: null, // ProjectV2 doesn't have description field
-				visibility: project.public ? "PUBLIC" : "PRIVATE",
-				closed: project.closed,
-				owner: {
-					login: org, // Use the org parameter since owner info isn't available in ProjectV2
-					type: "Organization",
-				},
-				createdAt: project.createdAt,
-				updatedAt: project.updatedAt,
-				itemsCount: project.items.totalCount,
-			}));
+      const projects: GitHubProjectV2[] = response.organization.projectsV2.nodes.map((project) => ({
+        id: project.id,
+        number: project.number,
+        title: project.title,
+        url: project.url,
+        description: null, // ProjectV2 doesn't have description field
+        visibility: project.public ? "PUBLIC" : "PRIVATE",
+        closed: project.closed,
+        owner: {
+          login: org, // Use the org parameter since owner info isn't available in ProjectV2
+          type: "Organization",
+        },
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+        itemsCount: project.items.totalCount,
+      }));
 
-			this.setCache(cacheKey, projects);
-			return projects;
-		} catch (error: any) {
-			throw new Error(`Failed to fetch projects for organization ${org}: ${error.message}`);
-		}
-	}
+      this.setCache(cacheKey, projects);
+      return projects;
+    } catch (error: any) {
+      throw new Error(`Failed to fetch projects for organization ${org}: ${error.message}`);
+    }
+  }
 
-	async getProjectDetails(projectId: string): Promise<GitHubProjectV2Details> {
-		const cacheKey = this.getCacheKey("getProjectDetails", { projectId });
-		const cached = this.getFromCache<GitHubProjectV2Details>(cacheKey);
-		if (cached) return cached;
+  async getProjectDetails(projectId: string): Promise<GitHubProjectV2Details> {
+    const cacheKey = this.getCacheKey("getProjectDetails", { projectId });
+    const cached = this.getFromCache<GitHubProjectV2Details>(cacheKey);
+    if (cached) return cached;
 
-		try {
-			const query = `
+    try {
+      const query = `
 				query($projectId: ID!) {
 					node(id: $projectId) {
 						... on ProjectV2 {
@@ -559,199 +523,189 @@ export class GitHubApiService {
 				}
 			`;
 
-			const response = await this.octokit.graphql<{
-				node: {
-					id: string;
-					number: number;
-					title: string;
-					url: string;
-					public: boolean;
-					closed: boolean;
-					createdAt: string;
-					updatedAt: string;
-					fields: {
-						nodes: Array<{
-							id: string;
-							name: string;
-							dataType: string;
-							options?: Array<{
-								id: string;
-								name: string;
-								color?: string;
-							}>;
-						}>;
-					};
-					items: {
-						totalCount: number;
-						nodes: Array<{
-							id: string;
-							type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
-							content: {
-								id: string;
-								title: string;
-								url?: string;
-								number?: number;
-								state?: "OPEN" | "CLOSED" | "MERGED";
-								body?: string;
-								author?: {
-									login: string;
-									avatarUrl: string;
-								} | null;
-								assignees?: {
-									nodes: Array<{
-										login: string;
-										avatarUrl: string;
-									}>;
-								} | null;
-								labels?: {
-									nodes: Array<{
-										name: string;
-										color: string;
-									}>;
-								} | null;
-								createdAt: string;
-								updatedAt: string;
-							};
-							fieldValues: {
-								nodes: Array<{
-									field?: {
-										name: string;
-										dataType: string;
-									};
-									text?: string;
-									name?: string;
-									number?: number;
-									date?: string;
-									users?: {
-										nodes: Array<{
-											login: string;
-											name: string;
-											avatarUrl: string;
-										}>;
-									};
-								}>;
-							};
-						}>;
-					};
-				};
-			}>(query, { projectId });
+      const response = await this.octokit.graphql<{
+        node: {
+          id: string;
+          number: number;
+          title: string;
+          url: string;
+          public: boolean;
+          closed: boolean;
+          createdAt: string;
+          updatedAt: string;
+          fields: {
+            nodes: Array<{
+              id: string;
+              name: string;
+              dataType: string;
+              options?: Array<{
+                id: string;
+                name: string;
+                color?: string;
+              }>;
+            }>;
+          };
+          items: {
+            totalCount: number;
+            nodes: Array<{
+              id: string;
+              type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+              content: {
+                id: string;
+                title: string;
+                url?: string;
+                number?: number;
+                state?: "OPEN" | "CLOSED" | "MERGED";
+                body?: string;
+                author?: {
+                  login: string;
+                  avatarUrl: string;
+                } | null;
+                assignees?: {
+                  nodes: Array<{
+                    login: string;
+                    avatarUrl: string;
+                  }>;
+                } | null;
+                labels?: {
+                  nodes: Array<{
+                    name: string;
+                    color: string;
+                  }>;
+                } | null;
+                createdAt: string;
+                updatedAt: string;
+              };
+              fieldValues: {
+                nodes: Array<{
+                  field?: {
+                    name: string;
+                    dataType: string;
+                  };
+                  text?: string;
+                  name?: string;
+                  number?: number;
+                  date?: string;
+                  users?: {
+                    nodes: Array<{
+                      login: string;
+                      name: string;
+                      avatarUrl: string;
+                    }>;
+                  };
+                }>;
+              };
+            }>;
+          };
+        };
+      }>(query, { projectId });
 
-			const project = response.node;
+      const project = response.node;
 
-			const projectDetails: GitHubProjectV2Details = {
-				project: {
-					id: project.id,
-					number: project.number,
-					title: project.title,
-					url: project.url,
-					description: null, // ProjectV2 doesn't have description field
-					visibility: project.public ? "PUBLIC" : "PRIVATE",
-					closed: project.closed,
-					owner: {
-						login: "unknown", // Owner info not available in this query
-						type: "Organization",
-					},
-					createdAt: project.createdAt,
-					updatedAt: project.updatedAt,
-					itemsCount: project.items.totalCount,
-				},
-				fields: project.fields.nodes
-					.filter(field => field && field.name)
-					.map(field => ({
-						id: field.id,
-						name: field.name,
-						dataType: field.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
-						options: field.options,
-					})),
-				items: project.items.nodes.map(item => {
-					// Get assignees from regular issue/PR assignees field
-					let assignees = item.content.assignees?.nodes || [];
-					
-					// Also check for assignees in custom fields
-					const assigneeField = item.fieldValues.nodes.find(fv => 
-						fv.field && fv.field.name.toLowerCase().includes('assignee') && fv.users
-					);
-					
-					if (assigneeField && assigneeField.users) {
-						// Convert custom field users to assignees format
-						const customAssignees = assigneeField.users.nodes.map(user => ({
-							login: user.login,
-							avatarUrl: user.avatarUrl,
-						}));
-						
-						// Merge with existing assignees (avoiding duplicates)
-						const allAssignees = [...assignees];
-						customAssignees.forEach(customAssignee => {
-							if (!allAssignees.find(a => a.login === customAssignee.login)) {
-								allAssignees.push(customAssignee);
-							}
-						});
-						assignees = allAssignees;
-					}
-					
-					return {
-						id: item.id,
-						type: item.type,
-						content: {
-							id: item.content.id,
-							title: item.content.title,
-							url: item.content.url || "",
-							number: item.content.number,
-							state: item.content.state,
-							body: item.content.body,
-							author: item.content.author || undefined,
-							assignees: assignees,
-							labels: item.content.labels?.nodes || [],
-							createdAt: item.content.createdAt,
-							updatedAt: item.content.updatedAt,
-						},
-						fieldValues: item.fieldValues.nodes
-						.filter(fieldValue => fieldValue.field && fieldValue.field.name)
-						.map(fieldValue => {
-							let value = fieldValue.text || fieldValue.name || fieldValue.number || fieldValue.date || null;
-							
-							// Handle user fields (assignees)
-							if (fieldValue.users && fieldValue.users.nodes.length > 0) {
-								value = fieldValue.users.nodes.map(user => user.login).join(', ');
-								
-								// This is handled above in the main assignees extraction
-							}
-							
-							return {
-								field: {
-									name: fieldValue.field!.name,
-									type: fieldValue.field!.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
-								},
-								value: value,
-							};
-						}),
-					};
-				}),
-				totalItemsCount: project.items.totalCount,
-				summary: {
-					totalItems: project.items.totalCount,
-					openIssues: project.items.nodes.filter(item => 
-						item.type === "ISSUE" && item.content.state === "OPEN"
-					).length,
-					closedIssues: project.items.nodes.filter(item => 
-						item.type === "ISSUE" && item.content.state === "CLOSED"
-					).length,
-					openPRs: project.items.nodes.filter(item => 
-						item.type === "PULL_REQUEST" && item.content.state === "OPEN"
-					).length,
-					mergedPRs: project.items.nodes.filter(item => 
-						item.type === "PULL_REQUEST" && item.content.state === "MERGED"
-					).length,
-					draftItems: project.items.nodes.filter(item => 
-						item.type === "DRAFT_ISSUE"
-					).length,
-				},
-			};
+      const projectDetails: GitHubProjectV2Details = {
+        project: {
+          id: project.id,
+          number: project.number,
+          title: project.title,
+          url: project.url,
+          description: null, // ProjectV2 doesn't have description field
+          visibility: project.public ? "PUBLIC" : "PRIVATE",
+          closed: project.closed,
+          owner: {
+            login: "unknown", // Owner info not available in this query
+            type: "Organization",
+          },
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          itemsCount: project.items.totalCount,
+        },
+        fields: project.fields.nodes
+          .filter((field) => field && field.name)
+          .map((field) => ({
+            id: field.id,
+            name: field.name,
+            dataType: field.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+            options: field.options,
+          })),
+        items: project.items.nodes.map((item) => {
+          // Get assignees from regular issue/PR assignees field
+          let assignees = item.content.assignees?.nodes || [];
 
-			this.setCache(cacheKey, projectDetails);
-			return projectDetails;
-		} catch (error: any) {
-			throw new Error(`Failed to fetch project details for project ${projectId}: ${error.message}`);
-		}
-	}
+          // Also check for assignees in custom fields
+          const assigneeField = item.fieldValues.nodes.find(
+            (fv) => fv.field && fv.field.name.toLowerCase().includes("assignee") && fv.users,
+          );
+
+          if (assigneeField && assigneeField.users) {
+            // Convert custom field users to assignees format
+            const customAssignees = assigneeField.users.nodes.map((user) => ({
+              login: user.login,
+              avatarUrl: user.avatarUrl,
+            }));
+
+            // Merge with existing assignees (avoiding duplicates)
+            const allAssignees = [...assignees];
+            customAssignees.forEach((customAssignee) => {
+              if (!allAssignees.find((a) => a.login === customAssignee.login)) {
+                allAssignees.push(customAssignee);
+              }
+            });
+            assignees = allAssignees;
+          }
+
+          return {
+            id: item.id,
+            type: item.type,
+            content: {
+              id: item.content.id,
+              title: item.content.title,
+              url: item.content.url || "",
+              number: item.content.number,
+              state: item.content.state,
+              body: item.content.body,
+              author: item.content.author || undefined,
+              assignees: assignees,
+              labels: item.content.labels?.nodes || [],
+              createdAt: item.content.createdAt,
+              updatedAt: item.content.updatedAt,
+            },
+            fieldValues: item.fieldValues.nodes
+              .filter((fieldValue) => fieldValue.field && fieldValue.field.name)
+              .map((fieldValue) => {
+                let value = fieldValue.text || fieldValue.name || fieldValue.number || fieldValue.date || null;
+
+                // Handle user fields (assignees)
+                if (fieldValue.users && fieldValue.users.nodes.length > 0) {
+                  value = fieldValue.users.nodes.map((user) => user.login).join(", ");
+
+                  // This is handled above in the main assignees extraction
+                }
+
+                return {
+                  field: {
+                    name: fieldValue.field!.name,
+                    type: fieldValue.field!.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+                  },
+                  value: value,
+                };
+              }),
+          };
+        }),
+        totalItemsCount: project.items.totalCount,
+        summary: {
+          totalItems: project.items.totalCount,
+          openIssues: project.items.nodes.filter((item) => item.type === "ISSUE" && item.content.state === "OPEN").length,
+          closedIssues: project.items.nodes.filter((item) => item.type === "ISSUE" && item.content.state === "CLOSED").length,
+          openPRs: project.items.nodes.filter((item) => item.type === "PULL_REQUEST" && item.content.state === "OPEN").length,
+          mergedPRs: project.items.nodes.filter((item) => item.type === "PULL_REQUEST" && item.content.state === "MERGED").length,
+          draftItems: project.items.nodes.filter((item) => item.type === "DRAFT_ISSUE").length,
+        },
+      };
+
+      this.setCache(cacheKey, projectDetails);
+      return projectDetails;
+    } catch (error: any) {
+      throw new Error(`Failed to fetch project details for project ${projectId}: ${error.message}`);
+    }
+  }
 }
