@@ -6,6 +6,8 @@ import { z } from "zod";
 import { GitHubHandler } from "./github-handler";
 import { GitHubApiService } from "./github-api-service";
 import { FinancialReportsService } from "./financial-reports-service";
+import { EFP_STATS_DUNE_QUERIES, PROJECT_BOARD_ID, PROJECT_STATUSES } from "./const";
+import { ProjectStatus } from "./types";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -21,6 +23,35 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
     name: "Team MCP",
     version: "1.0.0",
   });
+
+  // Helper method to set project item status
+  private async setProjectItemStatus(
+    githubApi: GitHubApiService,
+    projectId: string,
+    itemId: string,
+    status: ProjectStatus,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const projectDetails = await githubApi.getProjectDetails(projectId);
+      const statusField = projectDetails.fields.find((f) => f.name.toLowerCase() === "status" && f.dataType === "SINGLE_SELECT");
+
+      if (!statusField) {
+        return { success: false, error: "Status field not found in project" };
+      }
+
+      const statusOption = statusField.options?.find((opt) => opt.name === status);
+
+      if (!statusOption) {
+        return { success: false, error: `Status option '${status}' not found` };
+      }
+
+      await githubApi.updateProjectItemField(projectId, itemId, statusField.id, { singleSelectOptionId: statusOption.id });
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
 
   async init() {
     // Initialize GitHub API service
@@ -517,17 +548,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get detailed project information including all tasks
     this.server.tool(
-      "getProjectDetails",
+      "getProjectBoardDetails",
       "Get detailed information about a GitHub Projects v2 board including all tasks, fields, and status",
       {
-        projectId: z.string().describe("The GitHub project ID (can be obtained from listOrganizationProjects)"),
         includeFields: z.boolean().optional().default(true).describe("Include custom field information"),
         includeItems: z.boolean().optional().default(true).describe("Include all project items (issues, PRs, draft issues)"),
         limit: z.number().optional().default(100).describe("Maximum number of items to return"),
       },
-      async ({ projectId, includeFields, includeItems, limit }) => {
+      async ({ includeFields, includeItems, limit }) => {
         try {
-          const projectDetails = await githubApi.getProjectDetails(projectId);
+          const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
 
           const result = {
             project: {
@@ -587,133 +617,62 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
-    // Create a new issue in a repository
-    this.server.tool(
-      "createIssue",
-      "Create a new issue in a GitHub repository and optionally add it to a project board",
-      {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        title: z.string().describe("The issue title"),
-        body: z.string().optional().describe("The issue description/body in markdown format"),
-        assignees: z.array(z.string()).optional().describe("Array of GitHub usernames to assign to the issue"),
-        labels: z.array(z.string()).optional().describe("Array of label names to apply to the issue"),
-        addToProject: z.string().optional().describe("Project ID to immediately add the issue to after creation"),
-      },
-      async ({ owner, repo, title, body, assignees, labels, addToProject }) => {
-        try {
-          // Create the issue
-          const issue = await githubApi.createIssue(owner, repo, title, body, assignees, labels);
-
-          let projectItemId = null;
-          if (addToProject) {
-            // Add the issue to the project if specified
-            try {
-              const projectItem = await githubApi.addIssueToProject(addToProject, issue.id);
-              projectItemId = projectItem.itemId;
-            } catch (projError: any) {
-              console.error(`Failed to add issue to project: ${projError.message}`);
-            }
-          }
-
-          const result = {
-            issue: {
-              id: issue.id,
-              number: issue.number,
-              url: issue.url,
-              title,
-              repository: `${owner}/${repo}`,
-            },
-            project: addToProject
-              ? {
-                  projectId: addToProject,
-                  itemId: projectItemId,
-                  status: projectItemId ? "added" : "failed to add",
-                }
-              : null,
-            message: `Issue #${issue.number} created successfully${
-              addToProject && projectItemId ? " and added to project" : ""
-            }`,
-          };
-
-          return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-          };
-        } catch (error: any) {
-          return {
-            content: [{ text: `Error creating issue: ${error.message}`, type: "text" }],
-          };
-        }
-      },
-    );
-
-    // Add an existing issue to a project board
-    this.server.tool(
-      "addIssueToProject",
-      "Add an existing issue or pull request to a GitHub Projects v2 board",
-      {
-        projectId: z.string().describe("The project ID (can be obtained from listOrganizationProjects)"),
-        issueNumber: z.number().describe("The issue or pull request number"),
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-      },
-      async ({ projectId, issueNumber, owner, repo }) => {
-        try {
-          // Get the issue/PR ID
-          const contentId = await githubApi.getIssueIdByNumber(owner, repo, issueNumber);
-
-          // Add to project
-          const projectItem = await githubApi.addIssueToProject(projectId, contentId);
-
-          const result = {
-            projectId,
-            itemId: projectItem.itemId,
-            issue: {
-              number: issueNumber,
-              repository: `${owner}/${repo}`,
-            },
-            message: `Issue #${issueNumber} added to project successfully`,
-          };
-
-          return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-          };
-        } catch (error: any) {
-          return {
-            content: [{ text: `Error adding issue to project: ${error.message}`, type: "text" }],
-          };
-        }
-      },
-    );
-
     // Update project item fields
     this.server.tool(
-      "updateProjectItem",
-      "Update field values for an item in a GitHub Projects v2 board",
+      "updateProjectBoardItem",
+      "Update custom field values for an item in a GitHub Projects v2 board (status, start time, end time, etc). Note: Built-in fields like Title, Assignees, Labels cannot be updated through this tool.",
       {
-        projectId: z.string().describe("The project ID"),
-        itemId: z.string().describe("The project item ID (can be obtained from getProjectDetails)"),
-        fieldName: z.string().describe("The name of the field to update (e.g., 'Status', 'Priority')"),
-        value: z.union([
-          z.string(),
-          z.number(),
-          z.object({
-            optionName: z.string().describe("For single-select fields, the name of the option to select"),
-          }),
-        ]).describe("The new value for the field"),
+        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+        fieldName: z
+          .string()
+          .describe(
+            "The name of the CUSTOM field to update (e.g., 'Status', 'Priority'). Cannot update built-in fields like Title, Assignees, Labels.",
+          ),
+        value: z
+          .union([
+            z.string().describe("Text value or status name"),
+            z.number().describe("Numeric value"),
+            z.enum(PROJECT_STATUSES).describe("For Status field, use one of the predefined statuses"),
+            z
+              .object({
+                optionName: z.string().describe("For single-select fields, the name of the option to select"),
+              })
+              .describe("Object format for single-select fields"),
+          ])
+          .describe("The new value for the field. For Status field, use one of: " + PROJECT_STATUSES.join(", ")),
       },
-      async ({ projectId, itemId, fieldName, value }) => {
+      async (params) => {
+        const projectId = PROJECT_BOARD_ID;
+
+        const { itemId, fieldName, value } = params;
+
         try {
+          // Check if all required parameters are provided
+          if (!itemId) {
+            throw new Error(`itemId parameter is required`);
+          }
+          if (!fieldName) {
+            throw new Error(`fieldName parameter is required`);
+          }
+          if (value === undefined || value === null) {
+            throw new Error(`value parameter is required. Received: ${value}. Please provide a value for the field.`);
+          }
           // Get project details to find field information
           const projectDetails = await githubApi.getProjectDetails(projectId);
 
+          // Check for built-in fields that cannot be updated via updateProjectV2ItemFieldValue
+          const readOnlyFields = ["title", "assignees", "labels", "repository", "milestone"];
+          if (readOnlyFields.includes(fieldName.toLowerCase())) {
+            throw new Error(`Field '${fieldName}' is a built-in field that cannot be updated. Only custom project fields can be modified.`);
+          }
+
           // Find the field
-          const field = projectDetails.fields.find(
-            (f) => f.name.toLowerCase() === fieldName.toLowerCase()
-          );
+          const field = projectDetails.fields.find((f) => f.name.toLowerCase() === fieldName.toLowerCase());
 
           if (!field) {
-            throw new Error(`Field '${fieldName}' not found in project`);
+            // List available fields for better error message
+            const availableFields = projectDetails.fields.map((f) => f.name).join(", ");
+            throw new Error(`Field '${fieldName}' not found in project. Available custom fields: ${availableFields}`);
           }
 
           // Prepare the value based on field type
@@ -731,18 +690,14 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               break;
             case "SINGLE_SELECT":
               if (typeof value === "object" && "optionName" in value) {
-                const option = field.options?.find(
-                  (opt) => opt.name.toLowerCase() === value.optionName.toLowerCase()
-                );
+                const option = field.options?.find((opt) => opt.name.toLowerCase() === value.optionName.toLowerCase());
                 if (!option) {
                   throw new Error(`Option '${value.optionName}' not found for field '${fieldName}'`);
                 }
                 fieldValue.singleSelectOptionId = option.id;
               } else {
                 // Try to match the value as a string
-                const option = field.options?.find(
-                  (opt) => opt.name.toLowerCase() === String(value).toLowerCase()
-                );
+                const option = field.options?.find((opt) => opt.name.toLowerCase() === String(value).toLowerCase());
                 if (!option) {
                   throw new Error(`Option '${value}' not found for field '${fieldName}'`);
                 }
@@ -778,48 +733,144 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
+    // Update draft issue title and/or description
+    this.server.tool(
+      "updateProjectBoardDraftIssueTitle",
+      "Update the title and/or description of a draft issue in a GitHub Projects v2 board",
+      {
+        itemId: z.string().describe("The project item ID of the draft issue (can be obtained from getProjectBoardDetails)"),
+        title: z.string().optional().describe("The new title for the draft issue (leave empty to keep current title)"),
+        body: z.string().optional().describe("The new description/body for the draft issue (leave empty to keep current body)"),
+      },
+      async ({ itemId, title, body }) => {
+        const projectId = PROJECT_BOARD_ID;
+
+        try {
+          // At least one field must be provided
+          if (!title && !body) {
+            throw new Error("At least one of 'title' or 'body' must be provided to update the draft issue");
+          }
+
+          // First, get the project details to verify this is a draft issue
+          const projectDetails = await githubApi.getProjectDetails(projectId);
+          const item = projectDetails.items.find((i) => i.id === itemId);
+
+          if (!item) throw new Error(`Project item with ID '${itemId}' not found`);
+
+          if (item.type !== "DRAFT_ISSUE") {
+            throw new Error(
+              `Item '${itemId}' is not a draft issue. Only draft issues can be updated this way. For repository issues, update the title/body directly in the repository.`,
+            );
+          }
+
+          // Get the actual draft issue ID from the project item content
+          const draftIssueId = item.content.id;
+
+          // Build the mutation dynamically based on provided fields
+          const updateFields: string[] = [];
+          const variables: any = { draftIssueId };
+
+          if (title !== undefined) {
+            updateFields.push("title: $title");
+            variables.title = title;
+          }
+
+          if (body !== undefined) {
+            updateFields.push("body: $body");
+            variables.body = body;
+          }
+
+          const mutation = `
+            mutation($draftIssueId: ID!${title !== undefined ? ", $title: String!" : ""}${body !== undefined ? ", $body: String" : ""}) {
+              updateProjectV2DraftIssue(input: {
+                draftIssueId: $draftIssueId,
+                ${updateFields.join(",\n                ")}
+              }) {
+                draftIssue {
+                  id
+                  title
+                  body
+                }
+              }
+            }
+          `;
+
+          const response = await githubApi.octokit.graphql<{
+            updateProjectV2DraftIssue: {
+              draftIssue: {
+                id: string;
+                title: string;
+                body: string;
+              };
+            };
+          }>(mutation, variables);
+
+          const updatedFields: string[] = [];
+          if (title !== undefined)
+            updatedFields.push(`title: '${item.content.title}' → '${response.updateProjectV2DraftIssue.draftIssue.title}'`);
+          if (body !== undefined) updatedFields.push(`body: ${item.content.body ? "updated" : "added"}`);
+
+          const result = {
+            projectItemId: itemId,
+            draftIssueId: draftIssueId,
+            updates: {
+              title:
+                title !== undefined
+                  ? {
+                      old: item.content.title,
+                      new: response.updateProjectV2DraftIssue.draftIssue.title,
+                    }
+                  : null,
+              body:
+                body !== undefined
+                  ? {
+                      old: item.content.body || null,
+                      new: response.updateProjectV2DraftIssue.draftIssue.body || null,
+                    }
+                  : null,
+            },
+            message: `Draft issue updated successfully: ${updatedFields.join(", ")}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error updating draft issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
     // Create a draft issue in a project
     this.server.tool(
-      "createProjectDraftIssue",
+      "createProjectBoardDraftIssue",
       "Create a draft issue directly in a GitHub Projects v2 board without creating a repository issue",
       {
-        projectId: z.string().describe("The project ID (can be obtained from listOrganizationProjects)"),
         title: z.string().describe("The draft issue title"),
         body: z.string().optional().describe("The draft issue body/description"),
-        initialStatus: z.string().optional().describe("Initial status to set (e.g., 'Todo', 'In Progress')"),
+        initialStatus: z
+          .enum(PROJECT_STATUSES)
+          .optional()
+          .describe("Initial status column to set. Options: " + PROJECT_STATUSES.join(", ")),
       },
-      async ({ projectId, title, body, initialStatus }) => {
+      async ({ title, body, initialStatus }) => {
+        const projectId = PROJECT_BOARD_ID;
+
         try {
           // Create the draft issue
           const draftItem = await githubApi.createProjectDraftIssue(projectId, title, body);
 
           let statusUpdate = null;
           if (initialStatus) {
-            // Try to set the initial status
-            try {
-              const projectDetails = await githubApi.getProjectDetails(projectId);
-              const statusField = projectDetails.fields.find(
-                (f) => f.name.toLowerCase() === "status" && f.dataType === "SINGLE_SELECT"
-              );
-
-              if (statusField) {
-                const statusOption = statusField.options?.find(
-                  (opt) => opt.name.toLowerCase() === initialStatus.toLowerCase()
-                );
-
-                if (statusOption) {
-                  await githubApi.updateProjectItemField(
-                    projectId,
-                    draftItem.itemId,
-                    statusField.id,
-                    { singleSelectOptionId: statusOption.id }
-                  );
-                  statusUpdate = { field: "Status", value: statusOption.name };
-                }
-              }
-            } catch (statusError: any) {
-              console.error(`Failed to set initial status: ${statusError.message}`);
-            }
+            // Set the initial status using our helper method
+            const statusResult = await this.setProjectItemStatus(githubApi, projectId, draftItem.itemId, initialStatus);
+            statusUpdate = {
+              success: statusResult.success,
+              value: statusResult.success ? initialStatus : null,
+              error: statusResult.error || null,
+            };
           }
 
           const result = {
@@ -832,7 +883,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             },
             statusUpdate,
             message: `Draft issue created successfully${
-              statusUpdate ? ` with status '${statusUpdate.value}'` : ""
+              statusUpdate?.success
+                ? ` with status '${statusUpdate.value}'`
+                : statusUpdate?.error
+                  ? ` (status update failed: ${statusUpdate.error})`
+                  : ""
             }`,
           };
 
@@ -846,6 +901,40 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         }
       },
     );
+
+    // Quick status update tool
+    // this.server.tool(
+    //   "updateProjectBoardItemStatus",
+    //   "Update the status column of a project item quickly",
+    //   {
+    //     itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+    //     status: z.enum(PROJECT_STATUSES).describe("The new status to set. Options: " + PROJECT_STATUSES.join(", ")),
+    //   },
+    //   async ({ itemId, status }) => {
+    //     const projectId = PROJECT_BOARD_ID;
+
+    //     try {
+    //       const statusResult = await this.setProjectItemStatus(githubApi, projectId, itemId, status);
+
+    //       const result = {
+    //         projectId,
+    //         itemId,
+    //         status: status,
+    //         success: statusResult.success,
+    //         error: statusResult.error || null,
+    //         message: statusResult.success ? `Status updated to '${status}' successfully` : `Failed to update status: ${statusResult.error}`,
+    //       };
+
+    //       return {
+    //         content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+    //       };
+    //     } catch (error: any) {
+    //       return {
+    //         content: [{ text: `Error updating status: ${error.message}`, type: "text" }],
+    //       };
+    //     }
+    //   },
+    // );
 
     // Get EFP statistics from Dune Analytics
     this.server.tool(
@@ -876,120 +965,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             };
           }
 
-          const queries = [
-            {
-              name: "Total lists minted",
-              queryId: "4109395",
-            },
-            {
-              name: "Lists minted in last 30 days",
-              queryId: "4122608",
-            },
-            {
-              name: "Lists minted in last 1 day",
-              queryId: "4118679",
-            },
-            {
-              name: "Lists minted per day in last 30 days",
-              queryId: "4128848",
-            },
-            {
-              name: "Unique lists minted in last 12 months",
-              queryId: "4128852",
-            },
-            {
-              name: "Total unique lists minted",
-              queryId: "4109396",
-            },
-            {
-              name: "Unique lists minted in last 30 days",
-              queryId: "4122666",
-            },
-            {
-              name: "Unique minters per month in last 12 months",
-              queryId: "4128901",
-            },
-            {
-              name: "Unique minters per day in last 30 days",
-              queryId: "4128889",
-            },
-            {
-              name: "Total list ops (Base)",
-              queryId: "4128833",
-            },
-            {
-              name: "Total list ops (Base) in last 30 days",
-              queryId: "4122661",
-            },
-            {
-              name: "Total list ops (Base) in last 24 hours",
-              queryId: "4118691",
-            },
-            {
-              name: "Total list ops (Base) per day in last 30 days",
-              queryId: "4128836",
-            },
-            {
-              name: "Total list ops (Base) per month in last 12 months",
-              queryId: "4128937",
-            },
-            {
-              name: "Total list ops (Optimism)",
-              queryId: "4128834",
-            },
-            {
-              name: "Total list ops (Optimism) in last 30 days",
-              queryId: "4122777",
-            },
-            {
-              name: "Total list ops (Optimism) in last 24 hours",
-              queryId: "4118836",
-            },
-            {
-              name: "Total list ops (Optimism) per day in last 30 days",
-              queryId: "4122751",
-            },
-            {
-              name: "Total list ops (Optimism) per month in last 12 months",
-              queryId: "4128942",
-            },
-            {
-              name: "Total list ops (Ethereum Mainnet)",
-              queryId: "4128835",
-            },
-            {
-              name: "Total list ops (Ethereum Mainnet) in last 30 days",
-              queryId: "4122786",
-            },
-            {
-              name: "Total list ops (Ethereum Mainnet) in last 24 hours",
-              queryId: "4118840",
-            },
-            {
-              name: "Total list ops (Ethereum Mainnet) per day in last 30 days",
-              queryId: "4122769",
-            },
-            {
-              name: "Total list ops (Ethereum Mainnet) per month in last 12 months",
-              queryId: "4128944",
-            },
-            {
-              name: "Running total daily unique list minters",
-              queryId: "4592634",
-            },
-            {
-              name: "Running total list ops all chains all time",
-              queryId: "4592577",
-            },
-            {
-              name: "Total list ops (All chains)",
-              queryId: "4142209",
-            },
-            {
-              name: "Daily active users",
-              queryId: "4150180",
-            },
-          ];
+          const queries = EFP_STATS_DUNE_QUERIES;
 
           // Filter queries based on target if provided
           const filteredQueries = searchQuery ? queries.filter((q) => q.name.toLowerCase().includes(searchQuery.toLowerCase())) : queries;
@@ -1092,7 +1068,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Quick financial report tool (no OCR)
     this.server.tool(
-      "getFinancialReportQuick", 
+      "getFinancialReportQuick",
       "Get pre-cached financial report data (fast, no OCR required)",
       {
         quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]).describe("The quarter (Q1, Q2, Q3, or Q4)"),
@@ -1101,16 +1077,22 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       async ({ quarter, year }) => {
         try {
           const report = await financialReportsService.getReportByQuarter(quarter, year);
-          
+
           if (!report) {
             return {
-              content: [{
-                text: JSON.stringify({
-                  error: "Report not found",
-                  message: `No financial report found for ${year} ${quarter}`,
-                }, null, 2),
-                type: "text"
-              }],
+              content: [
+                {
+                  text: JSON.stringify(
+                    {
+                      error: "Report not found",
+                      message: `No financial report found for ${year} ${quarter}`,
+                    },
+                    null,
+                    2,
+                  ),
+                  type: "text",
+                },
+              ],
             };
           }
 
@@ -1119,10 +1101,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             report_url: `https://discuss.ens.domains/t/eif-efp-spp-financial-and-progress-reports/20102`,
             image_urls: report.imageUrls,
             has_cached_data: !!report.extractedData,
-            message: report.extractedData 
-              ? "Pre-cached data available" 
+            message: report.extractedData
+              ? "Pre-cached data available"
               : "No cached data - use getFinancialReport with forceRefresh=false for OCR extraction",
-            cached_data: report.extractedData || null
+            cached_data: report.extractedData || null,
           };
 
           return {
@@ -1133,7 +1115,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             content: [{ text: `Error: ${error.message}`, type: "text" }],
           };
         }
-      }
+      },
     );
 
     this.server.tool("listFinancialReports", "List all available financial reports by quarter", {}, async () => {

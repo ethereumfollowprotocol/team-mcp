@@ -12,12 +12,16 @@ import type {
 } from "./types";
 
 export class GitHubApiService {
-  private octokit: Octokit;
+  private _octokit: Octokit;
+
+  get octokit(): Octokit {
+    return this._octokit;
+  }
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(accessToken: string) {
-    this.octokit = new Octokit({ auth: accessToken });
+    this._octokit = new Octokit({ auth: accessToken });
   }
 
   private getCacheKey(method: string, params: any): string {
@@ -70,7 +74,7 @@ export class GitHubApiService {
     if (cached) return cached;
 
     try {
-      const repos = await this.paginate<GitHubRepository>(this.octokit.rest.repos.listForOrg, {
+      const repos = await this.paginate<GitHubRepository>(this._octokit.rest.repos.listForOrg, {
         org,
         type: includePrivate ? "all" : "public",
         sort: "updated",
@@ -100,7 +104,7 @@ export class GitHubApiService {
       if (branch) params.sha = branch;
 
       const commits = await this.paginate<GitHubCommit>(
-        this.octokit.rest.repos.listCommits,
+        this._octokit.rest.repos.listCommits,
         params,
         5, // Limit to 5 pages for performance
       );
@@ -130,7 +134,7 @@ export class GitHubApiService {
       if (since) params.since = since;
 
       const issues = await this.paginate<GitHubIssue>(
-        this.octokit.rest.issues.listForRepo,
+        this._octokit.rest.issues.listForRepo,
         params,
         3, // Limit to 3 pages for performance
       );
@@ -150,7 +154,7 @@ export class GitHubApiService {
 
     try {
       const prs = await this.paginate<GitHubPullRequest>(
-        this.octokit.rest.pulls.list,
+        this._octokit.rest.pulls.list,
         {
           owner,
           repo,
@@ -176,7 +180,7 @@ export class GitHubApiService {
 
     try {
       const contributors = await this.paginate<GitHubContributor>(
-        this.octokit.rest.repos.listContributors,
+        this._octokit.rest.repos.listContributors,
         {
           owner,
           repo,
@@ -258,11 +262,11 @@ export class GitHubApiService {
       const searchQuery = `org:${org} ${query} ${state !== "all" ? `state:${state}` : ""}`;
 
       const [issuesResponse, prsResponse] = await Promise.all([
-        this.octokit.rest.search.issuesAndPullRequests({
+        this._octokit.rest.search.issuesAndPullRequests({
           q: `${searchQuery} type:issue`,
           per_page: 100,
         }),
-        this.octokit.rest.search.issuesAndPullRequests({
+        this._octokit.rest.search.issuesAndPullRequests({
           q: `${searchQuery} type:pr`,
           per_page: 100,
         }),
@@ -309,7 +313,7 @@ export class GitHubApiService {
 				}
 			`;
 
-      const response = await this.octokit.graphql<{
+      const response = await this._octokit.graphql<{
         organization: {
           projectsV2: {
             nodes: Array<{
@@ -523,7 +527,7 @@ export class GitHubApiService {
 				}
 			`;
 
-      const response = await this.octokit.graphql<{
+      const response = await this._octokit.graphql<{
         node: {
           id: string;
           number: number;
@@ -710,147 +714,147 @@ export class GitHubApiService {
   }
 
   // Create a new issue in a repository
-  async createIssue(
-    owner: string,
-    repo: string,
-    title: string,
-    body?: string,
-    assignees?: string[],
-    labels?: string[]
-  ): Promise<{ id: string; number: number; url: string }> {
-    try {
-      // First, get the repository ID
-      const repoQuery = `
-        query($owner: String!, $name: String!) {
-          repository(owner: $owner, name: $name) {
-            id
-          }
-        }
-      `;
+  // async createIssue(
+  //   owner: string,
+  //   repo: string,
+  //   title: string,
+  //   body?: string,
+  //   assignees?: string[],
+  //   labels?: string[]
+  // ): Promise<{ id: string; number: number; url: string }> {
+  //   try {
+  //     // First, get the repository ID
+  //     const repoQuery = `
+  //       query($owner: String!, $name: String!) {
+  //         repository(owner: $owner, name: $name) {
+  //           id
+  //         }
+  //       }
+  //     `;
 
-      const repoResponse = await this.octokit.graphql<{
-        repository: { id: string };
-      }>(repoQuery, { owner, name: repo });
+  //     const repoResponse = await this.octokit.graphql<{
+  //       repository: { id: string };
+  //     }>(repoQuery, { owner, name: repo });
 
-      const repositoryId = repoResponse.repository.id;
+  //     const repositoryId = repoResponse.repository.id;
 
-      // Get label IDs if labels are provided
-      let labelIds: string[] = [];
-      if (labels && labels.length > 0) {
-        const labelQuery = `
-          query($owner: String!, $name: String!) {
-            repository(owner: $owner, name: $name) {
-              labels(first: 100) {
-                nodes {
-                  id
-                  name
-                }
-              }
-            }
-          }
-        `;
+  //     // Get label IDs if labels are provided
+  //     let labelIds: string[] = [];
+  //     if (labels && labels.length > 0) {
+  //       const labelQuery = `
+  //         query($owner: String!, $name: String!) {
+  //           repository(owner: $owner, name: $name) {
+  //             labels(first: 100) {
+  //               nodes {
+  //                 id
+  //                 name
+  //               }
+  //             }
+  //           }
+  //         }
+  //       `;
 
-        const labelResponse = await this.octokit.graphql<{
-          repository: {
-            labels: {
-              nodes: Array<{ id: string; name: string }>;
-            };
-          };
-        }>(labelQuery, { owner, name: repo });
+  //       const labelResponse = await this.octokit.graphql<{
+  //         repository: {
+  //           labels: {
+  //             nodes: Array<{ id: string; name: string }>;
+  //           };
+  //         };
+  //       }>(labelQuery, { owner, name: repo });
 
-        const availableLabels = labelResponse.repository.labels.nodes;
-        labelIds = labels
-          .map(labelName => {
-            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
-            return label?.id;
-          })
-          .filter((id): id is string => id !== undefined);
-      }
+  //       const availableLabels = labelResponse.repository.labels.nodes;
+  //       labelIds = labels
+  //         .map(labelName => {
+  //           const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+  //           return label?.id;
+  //         })
+  //         .filter((id): id is string => id !== undefined);
+  //     }
 
-      // Create the issue
-      const createIssueMutation = `
-        mutation($input: CreateIssueInput!) {
-          createIssue(input: $input) {
-            issue {
-              id
-              number
-              url
-            }
-          }
-        }
-      `;
+  //     // Create the issue
+  //     const createIssueMutation = `
+  //       mutation($input: CreateIssueInput!) {
+  //         createIssue(input: $input) {
+  //           issue {
+  //             id
+  //             number
+  //             url
+  //           }
+  //         }
+  //       }
+  //     `;
 
-      const input: any = {
-        repositoryId,
-        title,
-      };
+  //     const input: any = {
+  //       repositoryId,
+  //       title,
+  //     };
 
-      if (body) input.body = body;
-      // Note: assigneeIds would need to be GitHub user IDs, not usernames
-      // For now, we'll skip assignees in the creation mutation and handle them separately if needed
-      if (labelIds.length > 0) input.labelIds = labelIds;
+  //     if (body) input.body = body;
+  //     // Note: assigneeIds would need to be GitHub user IDs, not usernames
+  //     // For now, we'll skip assignees in the creation mutation and handle them separately if needed
+  //     if (labelIds.length > 0) input.labelIds = labelIds;
 
-      const response = await this.octokit.graphql<{
-        createIssue: {
-          issue: {
-            id: string;
-            number: number;
-            url: string;
-          };
-        };
-      }>(createIssueMutation, { input });
+  //     const response = await this.octokit.graphql<{
+  //       createIssue: {
+  //         issue: {
+  //           id: string;
+  //           number: number;
+  //           url: string;
+  //         };
+  //       };
+  //     }>(createIssueMutation, { input });
 
-      return response.createIssue.issue;
-    } catch (error: any) {
-      throw new Error(`Failed to create issue in ${owner}/${repo}: ${error.message}`);
-    }
-  }
+  //     return response.createIssue.issue;
+  //   } catch (error: any) {
+  //     throw new Error(`Failed to create issue in ${owner}/${repo}: ${error.message}`);
+  //   }
+  // }
 
-  // Add an issue or pull request to a project board
-  async addIssueToProject(projectId: string, contentId: string): Promise<{ itemId: string }> {
-    try {
-      const mutation = `
-        mutation($projectId: ID!, $contentId: ID!) {
-          addProjectV2ItemById(input: {
-            projectId: $projectId,
-            contentId: $contentId
-          }) {
-            item {
-              id
-            }
-          }
-        }
-      `;
+  // // Add an issue or pull request to a project board
+  // async addIssueToProject(projectId: string, contentId: string): Promise<{ itemId: string }> {
+  //   try {
+  //     const mutation = `
+  //       mutation($projectId: ID!, $contentId: ID!) {
+  //         addProjectV2ItemById(input: {
+  //           projectId: $projectId,
+  //           contentId: $contentId
+  //         }) {
+  //           item {
+  //             id
+  //           }
+  //         }
+  //       }
+  //     `;
 
-      const response = await this.octokit.graphql<{
-        addProjectV2ItemById: {
-          item: {
-            id: string;
-          };
-        };
-      }>(mutation, { projectId, contentId });
+  //     const response = await this.octokit.graphql<{
+  //       addProjectV2ItemById: {
+  //         item: {
+  //           id: string;
+  //         };
+  //       };
+  //     }>(mutation, { projectId, contentId });
 
-      return { itemId: response.addProjectV2ItemById.item.id };
-    } catch (error: any) {
-      // Check if the error is because the item already exists
-      if (error.message.includes("already exists")) {
-        // Try to find the existing item
-        const projectDetails = await this.getProjectDetails(projectId);
-        const existingItem = projectDetails.items.find(item => item.content.id === contentId);
-        if (existingItem) {
-          return { itemId: existingItem.id };
-        }
-      }
-      throw new Error(`Failed to add issue to project ${projectId}: ${error.message}`);
-    }
-  }
+  //     return { itemId: response.addProjectV2ItemById.item.id };
+  //   } catch (error: any) {
+  //     // Check if the error is because the item already exists
+  //     if (error.message.includes("already exists")) {
+  //       // Try to find the existing item
+  //       const projectDetails = await this.getProjectDetails(projectId);
+  //       const existingItem = projectDetails.items.find(item => item.content.id === contentId);
+  //       if (existingItem) {
+  //         return { itemId: existingItem.id };
+  //       }
+  //     }
+  //     throw new Error(`Failed to add issue to project ${projectId}: ${error.message}`);
+  //   }
+  // }
 
   // Update a project item's field value
   async updateProjectItemField(
     projectId: string,
     itemId: string,
     fieldId: string,
-    value: { text?: string; number?: number; date?: string; singleSelectOptionId?: string; iterationId?: string }
+    value: { text?: string; number?: number; date?: string; singleSelectOptionId?: string; iterationId?: string },
   ): Promise<boolean> {
     try {
       const mutation = `
@@ -868,7 +872,9 @@ export class GitHubApiService {
         }
       `;
 
-      await this.octokit.graphql(mutation, {
+      console.log(`Updating project item field: ${itemId} with field ${fieldId} and value ${JSON.stringify(value)}`);
+
+      await this._octokit.graphql(mutation, {
         projectId,
         itemId,
         fieldId,
@@ -882,11 +888,7 @@ export class GitHubApiService {
   }
 
   // Create a draft issue directly in a project
-  async createProjectDraftIssue(
-    projectId: string,
-    title: string,
-    body?: string
-  ): Promise<{ itemId: string }> {
+  async createProjectDraftIssue(projectId: string, title: string, body?: string): Promise<{ itemId: string }> {
     try {
       const mutation = `
         mutation($projectId: ID!, $title: String!, $body: String) {
@@ -902,7 +904,7 @@ export class GitHubApiService {
         }
       `;
 
-      const response = await this.octokit.graphql<{
+      const response = await this._octokit.graphql<{
         addProjectV2DraftIssue: {
           projectItem: {
             id: string;
@@ -929,7 +931,7 @@ export class GitHubApiService {
         }
       `;
 
-      const response = await this.octokit.graphql<{
+      const response = await this._octokit.graphql<{
         repository: {
           issue: {
             id: string;
@@ -951,7 +953,7 @@ export class GitHubApiService {
           }
         `;
 
-        const prResponse = await this.octokit.graphql<{
+        const prResponse = await this._octokit.graphql<{
           repository: {
             pullRequest: {
               id: string;
