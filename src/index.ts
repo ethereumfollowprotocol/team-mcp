@@ -587,6 +587,266 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
+    // Create a new issue in a repository
+    this.server.tool(
+      "createIssue",
+      "Create a new issue in a GitHub repository and optionally add it to a project board",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        title: z.string().describe("The issue title"),
+        body: z.string().optional().describe("The issue description/body in markdown format"),
+        assignees: z.array(z.string()).optional().describe("Array of GitHub usernames to assign to the issue"),
+        labels: z.array(z.string()).optional().describe("Array of label names to apply to the issue"),
+        addToProject: z.string().optional().describe("Project ID to immediately add the issue to after creation"),
+      },
+      async ({ owner, repo, title, body, assignees, labels, addToProject }) => {
+        try {
+          // Create the issue
+          const issue = await githubApi.createIssue(owner, repo, title, body, assignees, labels);
+
+          let projectItemId = null;
+          if (addToProject) {
+            // Add the issue to the project if specified
+            try {
+              const projectItem = await githubApi.addIssueToProject(addToProject, issue.id);
+              projectItemId = projectItem.itemId;
+            } catch (projError: any) {
+              console.error(`Failed to add issue to project: ${projError.message}`);
+            }
+          }
+
+          const result = {
+            issue: {
+              id: issue.id,
+              number: issue.number,
+              url: issue.url,
+              title,
+              repository: `${owner}/${repo}`,
+            },
+            project: addToProject
+              ? {
+                  projectId: addToProject,
+                  itemId: projectItemId,
+                  status: projectItemId ? "added" : "failed to add",
+                }
+              : null,
+            message: `Issue #${issue.number} created successfully${
+              addToProject && projectItemId ? " and added to project" : ""
+            }`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error creating issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Add an existing issue to a project board
+    this.server.tool(
+      "addIssueToProject",
+      "Add an existing issue or pull request to a GitHub Projects v2 board",
+      {
+        projectId: z.string().describe("The project ID (can be obtained from listOrganizationProjects)"),
+        issueNumber: z.number().describe("The issue or pull request number"),
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+      },
+      async ({ projectId, issueNumber, owner, repo }) => {
+        try {
+          // Get the issue/PR ID
+          const contentId = await githubApi.getIssueIdByNumber(owner, repo, issueNumber);
+
+          // Add to project
+          const projectItem = await githubApi.addIssueToProject(projectId, contentId);
+
+          const result = {
+            projectId,
+            itemId: projectItem.itemId,
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            message: `Issue #${issueNumber} added to project successfully`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error adding issue to project: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Update project item fields
+    this.server.tool(
+      "updateProjectItem",
+      "Update field values for an item in a GitHub Projects v2 board",
+      {
+        projectId: z.string().describe("The project ID"),
+        itemId: z.string().describe("The project item ID (can be obtained from getProjectDetails)"),
+        fieldName: z.string().describe("The name of the field to update (e.g., 'Status', 'Priority')"),
+        value: z.union([
+          z.string(),
+          z.number(),
+          z.object({
+            optionName: z.string().describe("For single-select fields, the name of the option to select"),
+          }),
+        ]).describe("The new value for the field"),
+      },
+      async ({ projectId, itemId, fieldName, value }) => {
+        try {
+          // Get project details to find field information
+          const projectDetails = await githubApi.getProjectDetails(projectId);
+
+          // Find the field
+          const field = projectDetails.fields.find(
+            (f) => f.name.toLowerCase() === fieldName.toLowerCase()
+          );
+
+          if (!field) {
+            throw new Error(`Field '${fieldName}' not found in project`);
+          }
+
+          // Prepare the value based on field type
+          let fieldValue: any = {};
+
+          switch (field.dataType) {
+            case "TEXT":
+              fieldValue.text = String(value);
+              break;
+            case "NUMBER":
+              fieldValue.number = typeof value === "number" ? value : parseFloat(String(value));
+              break;
+            case "DATE":
+              fieldValue.date = String(value);
+              break;
+            case "SINGLE_SELECT":
+              if (typeof value === "object" && "optionName" in value) {
+                const option = field.options?.find(
+                  (opt) => opt.name.toLowerCase() === value.optionName.toLowerCase()
+                );
+                if (!option) {
+                  throw new Error(`Option '${value.optionName}' not found for field '${fieldName}'`);
+                }
+                fieldValue.singleSelectOptionId = option.id;
+              } else {
+                // Try to match the value as a string
+                const option = field.options?.find(
+                  (opt) => opt.name.toLowerCase() === String(value).toLowerCase()
+                );
+                if (!option) {
+                  throw new Error(`Option '${value}' not found for field '${fieldName}'`);
+                }
+                fieldValue.singleSelectOptionId = option.id;
+              }
+              break;
+            default:
+              throw new Error(`Unsupported field type: ${field.dataType}`);
+          }
+
+          // Update the field
+          await githubApi.updateProjectItemField(projectId, itemId, field.id, fieldValue);
+
+          const result = {
+            projectId,
+            itemId,
+            field: {
+              name: field.name,
+              type: field.dataType,
+              value: value,
+            },
+            message: `Field '${fieldName}' updated successfully`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error updating project item: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Create a draft issue in a project
+    this.server.tool(
+      "createProjectDraftIssue",
+      "Create a draft issue directly in a GitHub Projects v2 board without creating a repository issue",
+      {
+        projectId: z.string().describe("The project ID (can be obtained from listOrganizationProjects)"),
+        title: z.string().describe("The draft issue title"),
+        body: z.string().optional().describe("The draft issue body/description"),
+        initialStatus: z.string().optional().describe("Initial status to set (e.g., 'Todo', 'In Progress')"),
+      },
+      async ({ projectId, title, body, initialStatus }) => {
+        try {
+          // Create the draft issue
+          const draftItem = await githubApi.createProjectDraftIssue(projectId, title, body);
+
+          let statusUpdate = null;
+          if (initialStatus) {
+            // Try to set the initial status
+            try {
+              const projectDetails = await githubApi.getProjectDetails(projectId);
+              const statusField = projectDetails.fields.find(
+                (f) => f.name.toLowerCase() === "status" && f.dataType === "SINGLE_SELECT"
+              );
+
+              if (statusField) {
+                const statusOption = statusField.options?.find(
+                  (opt) => opt.name.toLowerCase() === initialStatus.toLowerCase()
+                );
+
+                if (statusOption) {
+                  await githubApi.updateProjectItemField(
+                    projectId,
+                    draftItem.itemId,
+                    statusField.id,
+                    { singleSelectOptionId: statusOption.id }
+                  );
+                  statusUpdate = { field: "Status", value: statusOption.name };
+                }
+              }
+            } catch (statusError: any) {
+              console.error(`Failed to set initial status: ${statusError.message}`);
+            }
+          }
+
+          const result = {
+            projectId,
+            itemId: draftItem.itemId,
+            draftIssue: {
+              title,
+              body: body || null,
+              type: "DRAFT_ISSUE",
+            },
+            statusUpdate,
+            message: `Draft issue created successfully${
+              statusUpdate ? ` with status '${statusUpdate.value}'` : ""
+            }`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error creating draft issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
     // Get EFP statistics from Dune Analytics
     this.server.tool(
       "getEFPDuneStatistics",

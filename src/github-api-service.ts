@@ -708,4 +708,261 @@ export class GitHubApiService {
       throw new Error(`Failed to fetch project details for project ${projectId}: ${error.message}`);
     }
   }
+
+  // Create a new issue in a repository
+  async createIssue(
+    owner: string,
+    repo: string,
+    title: string,
+    body?: string,
+    assignees?: string[],
+    labels?: string[]
+  ): Promise<{ id: string; number: number; url: string }> {
+    try {
+      // First, get the repository ID
+      const repoQuery = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            id
+          }
+        }
+      `;
+
+      const repoResponse = await this.octokit.graphql<{
+        repository: { id: string };
+      }>(repoQuery, { owner, name: repo });
+
+      const repositoryId = repoResponse.repository.id;
+
+      // Get label IDs if labels are provided
+      let labelIds: string[] = [];
+      if (labels && labels.length > 0) {
+        const labelQuery = `
+          query($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+              labels(first: 100) {
+                nodes {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        `;
+
+        const labelResponse = await this.octokit.graphql<{
+          repository: {
+            labels: {
+              nodes: Array<{ id: string; name: string }>;
+            };
+          };
+        }>(labelQuery, { owner, name: repo });
+
+        const availableLabels = labelResponse.repository.labels.nodes;
+        labelIds = labels
+          .map(labelName => {
+            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+            return label?.id;
+          })
+          .filter((id): id is string => id !== undefined);
+      }
+
+      // Create the issue
+      const createIssueMutation = `
+        mutation($input: CreateIssueInput!) {
+          createIssue(input: $input) {
+            issue {
+              id
+              number
+              url
+            }
+          }
+        }
+      `;
+
+      const input: any = {
+        repositoryId,
+        title,
+      };
+
+      if (body) input.body = body;
+      // Note: assigneeIds would need to be GitHub user IDs, not usernames
+      // For now, we'll skip assignees in the creation mutation and handle them separately if needed
+      if (labelIds.length > 0) input.labelIds = labelIds;
+
+      const response = await this.octokit.graphql<{
+        createIssue: {
+          issue: {
+            id: string;
+            number: number;
+            url: string;
+          };
+        };
+      }>(createIssueMutation, { input });
+
+      return response.createIssue.issue;
+    } catch (error: any) {
+      throw new Error(`Failed to create issue in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Add an issue or pull request to a project board
+  async addIssueToProject(projectId: string, contentId: string): Promise<{ itemId: string }> {
+    try {
+      const mutation = `
+        mutation($projectId: ID!, $contentId: ID!) {
+          addProjectV2ItemById(input: {
+            projectId: $projectId,
+            contentId: $contentId
+          }) {
+            item {
+              id
+            }
+          }
+        }
+      `;
+
+      const response = await this.octokit.graphql<{
+        addProjectV2ItemById: {
+          item: {
+            id: string;
+          };
+        };
+      }>(mutation, { projectId, contentId });
+
+      return { itemId: response.addProjectV2ItemById.item.id };
+    } catch (error: any) {
+      // Check if the error is because the item already exists
+      if (error.message.includes("already exists")) {
+        // Try to find the existing item
+        const projectDetails = await this.getProjectDetails(projectId);
+        const existingItem = projectDetails.items.find(item => item.content.id === contentId);
+        if (existingItem) {
+          return { itemId: existingItem.id };
+        }
+      }
+      throw new Error(`Failed to add issue to project ${projectId}: ${error.message}`);
+    }
+  }
+
+  // Update a project item's field value
+  async updateProjectItemField(
+    projectId: string,
+    itemId: string,
+    fieldId: string,
+    value: { text?: string; number?: number; date?: string; singleSelectOptionId?: string; iterationId?: string }
+  ): Promise<boolean> {
+    try {
+      const mutation = `
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
+          updateProjectV2ItemFieldValue(input: {
+            projectId: $projectId,
+            itemId: $itemId,
+            fieldId: $fieldId,
+            value: $value
+          }) {
+            projectV2Item {
+              id
+            }
+          }
+        }
+      `;
+
+      await this.octokit.graphql(mutation, {
+        projectId,
+        itemId,
+        fieldId,
+        value,
+      });
+
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to update project item field: ${error.message}`);
+    }
+  }
+
+  // Create a draft issue directly in a project
+  async createProjectDraftIssue(
+    projectId: string,
+    title: string,
+    body?: string
+  ): Promise<{ itemId: string }> {
+    try {
+      const mutation = `
+        mutation($projectId: ID!, $title: String!, $body: String) {
+          addProjectV2DraftIssue(input: {
+            projectId: $projectId,
+            title: $title,
+            body: $body
+          }) {
+            projectItem {
+              id
+            }
+          }
+        }
+      `;
+
+      const response = await this.octokit.graphql<{
+        addProjectV2DraftIssue: {
+          projectItem: {
+            id: string;
+          };
+        };
+      }>(mutation, { projectId, title, body: body || "" });
+
+      return { itemId: response.addProjectV2DraftIssue.projectItem.id };
+    } catch (error: any) {
+      throw new Error(`Failed to create draft issue in project ${projectId}: ${error.message}`);
+    }
+  }
+
+  // Helper method to get issue/PR ID by number
+  async getIssueIdByNumber(owner: string, repo: string, number: number): Promise<string> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!, $number: Int!) {
+          repository(owner: $owner, name: $name) {
+            issue(number: $number) {
+              id
+            }
+          }
+        }
+      `;
+
+      const response = await this.octokit.graphql<{
+        repository: {
+          issue: {
+            id: string;
+          };
+        };
+      }>(query, { owner, name: repo, number });
+
+      return response.repository.issue.id;
+    } catch (error: any) {
+      // If issue not found, try pull request
+      try {
+        const prQuery = `
+          query($owner: String!, $name: String!, $number: Int!) {
+            repository(owner: $owner, name: $name) {
+              pullRequest(number: $number) {
+                id
+              }
+            }
+          }
+        `;
+
+        const prResponse = await this.octokit.graphql<{
+          repository: {
+            pullRequest: {
+              id: string;
+            };
+          };
+        }>(prQuery, { owner, name: repo, number });
+
+        return prResponse.repository.pullRequest.id;
+      } catch (prError: any) {
+        throw new Error(`Failed to find issue or PR #${number} in ${owner}/${repo}: ${error.message}`);
+      }
+    }
+  }
 }
