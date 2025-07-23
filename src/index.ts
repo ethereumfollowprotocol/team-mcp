@@ -939,7 +939,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           // Extract data if not already cached or if force refresh is requested
           if (!report.extractedData || forceRefresh) {
-            report = await financialReportsService.processAndCacheReport(quarter, year);
+            report = await financialReportsService.processAndCacheReport(quarter, year, forceRefresh);
           }
 
           const result = {
