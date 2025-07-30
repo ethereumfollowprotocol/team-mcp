@@ -1,185 +1,371 @@
-# GitHub MCP Server
+# GitHub Team Management MCP Server
 
-A comprehensive Model Context Protocol (MCP) server built on Cloudflare Workers that provides secure access to GitHub repositories, organizations, and project management features. This server enables AI assistants to interact with GitHub data through OAuth-based authentication.
+A comprehensive Model Context Protocol (MCP) server built on Cloudflare Workers that provides **full GitHub project management automation** for AI assistants. This server enables **both Claude and ChatGPT** to create issues, manage project boards, assign team members, and automate complete GitHub workflows through OAuth-based authentication.
 
-## 🚀 Features
+## 🚀 **Key Features**
 
-### Repository Management
-- **Organization Repositories**: List and explore all repositories within GitHub organizations
-- **Repository Details**: Get comprehensive information about specific repositories including recent activity
-- **Commit History**: Access detailed commit history with filtering by author, date range, and branch
-- **Contributor Analytics**: Analyze contributor statistics and contributions
+### **Complete GitHub Issue Management**
+- ✅ **Create Issues** with assignees, labels, and milestones
+- ✅ **Comment Management** - Add comments to any issue
+- ✅ **Assignee Management** - Add/remove assignees from issues
+- ✅ **Label Management** - Apply/remove labels from issues  
+- ✅ **Issue State Control** - Close/reopen issues with reasons
+- ✅ **Content Updates** - Modify issue titles and descriptions
+- ✅ **Project Integration** - Automatically add issues to project boards
 
-### Project Management (GitHub Projects v2)
-- **Project Discovery**: List all organization projects with visibility controls
-- **Project Details**: Complete project information including tasks, fields, and custom assignees
-- **Task Management**: Access all project items (issues, PRs, draft issues) with custom field support
-- **Progress Tracking**: Monitor project status and item completion
+### **Advanced Project Board Management**
+- ✅ **Smart Assignment** - Assign users to project items (handles both custom fields and built-in GitHub issue assignment)
+- ✅ **Status Management** - Update project board status columns
+- ✅ **Label Integration** - Apply labels to project board items
+- ✅ **Draft Issue Support** - Create and manage draft issues
+- ✅ **Multi-Item Operations** - Bulk operations across project items
 
-### Search & Discovery
-- **Cross-Repository Search**: Search issues and pull requests across all organization repositories
-- **Activity Monitoring**: Track recent activity across organization repositories
-- **Advanced Filtering**: Filter by state, author, labels, and custom criteria
+### **Dual AI Assistant Support**
+- 🤖 **Claude Integration** - Full feature access through Claude Desktop, Cursor, VSCode
+- 🤖 **ChatGPT Integration** - Compatible with ChatGPT Pro's Deep Research mode
+- 🔄 **Cross-Compatible** - Same server works with both AI assistants
+- 📊 **Smart Search** - AI-optimized search across repositories, issues, and projects
 
-### Additional Features
-- **EFP Dune Analytics**: Access real-time EFP statistics and blockchain analytics from Dune dashboards
-- **AI Image Generation**: Generate images using Flux-1-Schnell model (restricted access)
-- **Performance Optimization**: Built-in caching and rate limit handling
-- **Comprehensive Error Handling**: User-friendly error messages and debugging
+### **Enterprise Repository Management**
+- 🏢 **Organization-Wide Access** - List and analyze all repositories
+- 📈 **Activity Monitoring** - Track commits, issues, PRs across teams
+- 👥 **Contributor Analytics** - Analyze team contributions and patterns
+- 🔍 **Advanced Search** - Find issues/PRs across entire organizations
+- 📊 **EFP Blockchain Analytics** - Real-time Dune Analytics integration
 
-## 🏗️ Architecture
+## 🎯 **Perfect For**
 
-### Technology Stack
-- **Runtime**: Cloudflare Workers for serverless execution
-- **Storage**: Cloudflare KV for OAuth token storage
-- **State Management**: Cloudflare Durable Objects for session persistence
-- **Authentication**: GitHub OAuth 2.0 with secure token handling
-- **Framework**: Hono.js for HTTP routing and middleware
-- **AI**: Cloudflare AI Workers for image generation
+- **Engineering Teams** automating GitHub workflows
+- **Project Managers** coordinating development tasks  
+- **DevOps Teams** managing multi-repository operations
+- **AI-Powered Development** with Claude or ChatGPT assistance
+- **Team Leads** tracking project progress and assignments
 
-### Core Components
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   MCP Client    │────│   OAuth Flow    │────│  GitHub API     │
-│   (Claude/AI)   │    │   (Cloudflare)  │    │  (GitHub.com)   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                        │                        │
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   MCP Server    │────│   KV Storage    │────│  Durable Objects│
-│   (This App)    │    │   (Tokens)      │    │   (Sessions)    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
+## 📦 **Quick Start**
 
-## 📦 Installation & Setup
+### **Prerequisites**
+- Node.js 18+
+- Cloudflare Account with Workers plan
+- GitHub OAuth App
+- Wrangler CLI
 
-### Prerequisites
-- **Node.js** 18 or higher
-- **Cloudflare Account** with Workers plan
-- **GitHub Account** for OAuth app creation
-- **Wrangler CLI** installed globally
-
-### 1. Initial Setup
+### **1. Setup & Deploy**
 ```bash
-# Clone the repository
+# Clone and install
 git clone <repository-url>
 cd team-mcp
-
-# Install dependencies
 npm install
 
 # Login to Cloudflare
 wrangler login
+
+# Deploy to Cloudflare Workers
+npm run deploy
 ```
 
-### 2. GitHub OAuth App Configuration
-1. Navigate to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click "New OAuth App"
-3. Fill in the application details:
-   - **Application name**: `Your MCP Server`
-   - **Homepage URL**: `https://team-mcp.your-subdomain.workers.dev`
-   - **Authorization callback URL**: `https://team-mcp.your-subdomain.workers.dev/callback`
-4. Save the **Client ID** and generate a **Client Secret**
+### **2. GitHub OAuth Setup**
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Create "New OAuth App":
+   - **Name**: Your MCP Server
+   - **URL**: `https://team-mcp.your-subdomain.workers.dev`
+   - **Callback**: `https://team-mcp.your-subdomain.workers.dev/callback`
+3. Save Client ID and Secret
 
-### 3. Cloudflare Resources Setup
-```bash
-# Create KV namespace for OAuth tokens
-wrangler kv:namespace create "OAUTH_KV"
-
-# Generate encryption key for cookies
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-### 4. Environment Configuration
-Update your `wrangler.jsonc` with the OAuth credentials:
-
+### **3. Configure Environment**
+Update `wrangler.jsonc`:
 ```json
 {
-  "name": "team-mcp",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-03-10",
   "vars": {
     "GITHUB_CLIENT_ID": "your-github-client-id",
-    "GITHUB_CLIENT_SECRET": "your-github-client-secret", 
+    "GITHUB_CLIENT_SECRET": "your-github-client-secret",
     "COOKIE_ENCRYPTION_KEY": "your-base64-encryption-key"
-  },
-  "kv_namespaces": [
-    {
-      "binding": "OAUTH_KV",
-      "id": "your-kv-namespace-id"
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "MyMCP",
-        "name": "MCP_OBJECT"
-      }
-    ]
   }
 }
 ```
 
-### 5. Deployment
-```bash
-# Deploy to Cloudflare Workers
-npm run deploy
+### **4. Connect AI Assistant**
 
-# Verify deployment
-curl -I https://team-mcp.your-subdomain.workers.dev/sse
-```
-
-## 🔧 Usage
-
-### Connecting with MCP Inspector
-The fastest way to test your deployment:
-
-```bash
-# Install and run MCP Inspector
-npx @modelcontextprotocol/inspector@latest
-```
-
-Enter your server URL: `https://team-mcp.your-subdomain.workers.dev/sse`
-
-### Connecting with Claude Desktop
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-
+#### **For Claude Desktop:**
+Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "github": {
+    "github-team": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://team-mcp.your-subdomain.workers.dev/sse"
-      ]
+      "args": ["mcp-remote", "https://team-mcp.your-subdomain.workers.dev/sse"]
     }
   }
 }
 ```
 
-### Connecting with Cursor
-In Cursor's MCP settings, add:
-- **Type**: Command
-- **Command**: `npx mcp-remote https://team-mcp.your-subdomain.workers.dev/sse`
+#### **For ChatGPT Pro:**
+1. Add custom connector in ChatGPT settings
+2. Use URL: `https://team-mcp.your-subdomain.workers.dev/sse`
+3. Test in Deep Research mode
 
-## 🛠️ Available Tools
+## 🛠️ **Complete Tool Reference**
 
-### Repository Tools
+### **🎫 Issue Management Tools**
 
-#### `listOrganizationRepos`
-Lists all repositories for a GitHub organization with comprehensive filtering options.
+#### **`createGitHubIssue`**
+Create comprehensive GitHub issues with full metadata support.
+
+```javascript
+// Create a bug report with assignees and labels
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "title": "Fix authentication timeout issue",
+  "body": "## Bug Description\nUsers experiencing 30s timeout...",
+  "assignees": ["janzunec", "teammate"],
+  "labels": ["bug", "priority-high"],
+  "milestone": 1,
+  "addToProject": true
+}
+```
 
 **Parameters:**
-- `organization` (string): GitHub organization name (e.g., "ethereumfollowprotocol")
-- `includePrivate` (boolean, default: true): Include private repositories
-- `sortBy` (enum, default: "updated"): Sort by "name", "updated", "created", or "pushed"
-- `limit` (number, default: 50): Maximum number of repositories to return
+- `owner` (string): Repository owner
+- `repo` (string): Repository name
+- `title` (string): Issue title
+- `body` (string, optional): Issue description in markdown
+- `assignees` (string[], optional): GitHub usernames to assign
+- `labels` (string[], optional): Label names to apply
+- `milestone` (number, optional): Milestone number
+- `addToProject` (boolean, optional): Add to default project board
 
-**Example Usage:**
+#### **`commentOnGitHubIssue`**
+Add comments to existing GitHub issues.
+
 ```javascript
-// List recent repositories for an organization
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api", 
+  "issueNumber": 42,
+  "body": "## Update\nThis has been fixed in the latest deployment."
+}
+```
+
+#### **`updateIssueAssignees`**
+Manage issue assignees (replaces existing assignees).
+
+```javascript
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "issueNumber": 42,
+  "assignees": ["newdev", "teamlead"]
+}
+```
+
+#### **`updateIssueLabels`**
+Update issue labels (replaces existing labels).
+
+```javascript
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "issueNumber": 42,
+  "labels": ["in-progress", "needs-review"]
+}
+```
+
+#### **`closeIssue`** / **`reopenIssue`**
+Control issue state with optional close reasons.
+
+```javascript
+// Close with reason
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "issueNumber": 42,
+  "reason": "COMPLETED"  // or "NOT_PLANNED"
+}
+
+// Reopen
+{
+  "owner": "ethereumfollowprotocol", 
+  "repo": "api",
+  "issueNumber": 42
+}
+```
+
+#### **`updateIssue`**
+Update issue title and/or description.
+
+```javascript
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "issueNumber": 42,
+  "title": "Updated: Fix authentication timeout issue",
+  "body": "## Updated Description\nResolved in version 2.1.0..."
+}
+```
+
+#### **`getIssueDetails`**
+Fetch comprehensive issue information.
+
+```javascript
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api", 
+  "issueNumber": 42
+}
+```
+
+### **📋 Project Board Management Tools**
+
+#### **`getProjectBoardDetails`**
+Get complete project board information including all tasks and custom fields.
+
+```javascript
+{
+  "includeFields": true,
+  "includeItems": true,
+  "limit": 100
+}
+```
+
+#### **`updateProjectBoardItem`**
+Update custom fields on project board items.
+
+```javascript
+{
+  "itemId": "PVTI_lADOCIgXcc4Ah9ZWzgc45F8",
+  "fieldName": "Status", 
+  "value": "In Progress"
+}
+```
+
+**Supported Status Values:**
+- "Big Projects", "Throw Backlog", "Jan Backlog", "EIK Backlog"
+- "SIWE", "Todo - Jan", "Todo - Throw", "Blocked"
+- "In Progress", "Done"
+
+#### **`assignProjectBoardItem`**
+Assign team members to project board items.
+
+```javascript
+{
+  "itemId": "PVTI_lADOCIgXcc4Ah9ZWzgc45F8",
+  "usernames": ["janzunec", "teammate"]
+}
+```
+
+**Smart Assignment Logic:**
+- ✅ Works with custom assignee fields in projects
+- ✅ Falls back to direct GitHub issue assignment
+- ✅ Handles Issues, Pull Requests, and Draft Issues
+- ✅ Automatically detects the correct assignment method
+
+#### **`unassignProjectBoardItem`**
+Remove specific assignees from project items.
+
+```javascript
+{
+  "itemId": "PVTI_lADOCIgXcc4Ah9ZWzgc45F8", 
+  "usernames": ["former-assignee"]
+}
+```
+
+#### **`labelProjectBoardItem`**
+Add labels to project board items (works for GitHub issues in projects).
+
+```javascript
+{
+  "itemId": "PVTI_lADOCIgXcc4Ah9ZWzgc45F8",
+  "labels": ["urgent", "bug"]
+}
+```
+
+#### **`addIssueToProject`**
+Add existing GitHub issues to the project board.
+
+```javascript
+{
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "issueNumber": 42,
+  "initialStatus": "Todo - Jan"
+}
+```
+
+#### **`createProjectBoardDraftIssue`**
+Create draft issues directly in the project board.
+
+```javascript
+{
+  "title": "Research new API architecture",
+  "body": "## Research Goals\n- Evaluate GraphQL vs REST\n- Performance testing",
+  "initialStatus": "Big Projects"
+}
+```
+
+#### **`updateProjectBoardDraftIssueTitle`**
+Update draft issue titles and descriptions.
+
+```javascript
+{
+  "itemId": "PVTI_lADOCIgXcc4Ah9ZWzgc45F8",
+  "title": "Updated: Research new API architecture", 
+  "body": "## Updated Research Goals\n- Focus on GraphQL performance"
+}
+```
+
+#### **`getProjectAssignableUsers`**
+Get list of team members who can be assigned to project items.
+
+```javascript
+// No parameters needed
+{}
+```
+
+### **🔍 Search & Discovery Tools**
+
+#### **`search`** (ChatGPT Compatible)
+AI-optimized search across repositories, issues, PRs, and project items.
+
+```javascript
+{
+  "query": "authentication bug"
+}
+```
+
+**Search Types:**
+- 🔍 **Repository search** (when query includes "repo" or is short)
+- 🎫 **Issue/PR search** (full GitHub search syntax)
+- 📋 **Project item search** (when query includes "project", "task", "board")
+
+#### **`fetch`** (ChatGPT Compatible)
+Fetch detailed information for specific records by ID.
+
+```javascript
+{
+  "id": "repo:ethereumfollowprotocol/api"
+}
+// or
+{
+  "id": "issue:ethereumfollowprotocol:api:42"
+}
+// or  
+{
+  "id": "project-item:PVTI_lADOCIgXcc4Ah9ZWzgc45F8"
+}
+```
+
+**Supported ID Formats:**
+- `repo:owner/name` - Repository details
+- `issue:owner:repo:number` - Issue details
+- `pr:owner:repo:number` - Pull request details  
+- `project-item:itemId` - Project board item details
+
+### **🏢 Organization & Repository Tools**
+
+#### **`listOrganizationRepos`**
+List and filter organization repositories.
+
+```javascript
 {
   "organization": "ethereumfollowprotocol",
   "includePrivate": true,
@@ -188,379 +374,233 @@ Lists all repositories for a GitHub organization with comprehensive filtering op
 }
 ```
 
-#### `getRepositoryDetails`
-Retrieves comprehensive information about a specific repository including recent activity.
+#### **`getRepositoryDetails`**
+Get comprehensive repository information including recent activity.
 
-**Parameters:**
-- `owner` (string): Repository owner (username or organization)
-- `repo` (string): Repository name
-- `includeCommits` (boolean, default: true): Include recent commits
-- `includeIssues` (boolean, default: true): Include recent issues
-- `includePRs` (boolean, default: true): Include recent pull requests
-- `days` (number, default: 30): Number of days to look back for activity
-
-#### `getCommitHistory`
-Fetches detailed commit history with advanced filtering capabilities.
-
-**Parameters:**
-- `owner` (string): Repository owner
-- `repo` (string): Repository name
-- `since` (string, optional): ISO 8601 date to start from
-- `until` (string, optional): ISO 8601 date to end at
-- `branch` (string, optional): Specific branch (defaults to default branch)
-- `author` (string, optional): Filter by author username or email
-- `limit` (number, default: 50): Maximum number of commits to return
-
-#### `getContributorStats`
-Analyzes contributor statistics and contributions for a repository.
-
-**Parameters:**
-- `owner` (string): Repository owner
-- `repo` (string): Repository name
-- `limit` (number, default: 50): Maximum number of contributors to return
-
-### Activity & Search Tools
-
-#### `getRecentActivity`
-Monitors recent activity across all repositories in an organization.
-
-**Parameters:**
-- `organization` (string): GitHub organization name
-- `days` (number, default: 7): Number of days to look back for activity
-- `includePrivate` (boolean, default: true): Include private repositories
-- `limit` (number, default: 20): Maximum number of repositories to show
-
-#### `searchIssuesAndPRs`
-Searches for issues and pull requests across all organization repositories.
-
-**Parameters:**
-- `organization` (string): GitHub organization name
-- `query` (string): Search query (supports GitHub search syntax)
-- `state` (enum, default: "all"): Filter by "open", "closed", or "all"
-- `limit` (number, default: 50): Maximum number of results to return
-
-**Search Query Examples:**
-- `"bug"` - Find issues/PRs containing "bug"
-- `"author:username"` - Find items by specific author
-- `"label:urgent"` - Find items with "urgent" label
-- `"is:pr is:open"` - Find open pull requests
-
-### Project Management Tools
-
-#### `listOrganizationProjects`
-Lists all GitHub Projects v2 for an organization.
-
-**Parameters:**
-- `organization` (string): GitHub organization name
-- `includePrivate` (boolean, default: true): Include private projects
-- `limit` (number, default: 50): Maximum number of projects to return
-
-#### `getProjectDetails`
-Retrieves comprehensive information about a GitHub Projects v2 board.
-
-**Parameters:**
-- `projectId` (string): GitHub project ID (obtained from `listOrganizationProjects`)
-- `includeFields` (boolean, default: true): Include custom field information
-- `includeItems` (boolean, default: true): Include all project items
-- `limit` (number, default: 100): Maximum number of items to return
-
-**Features:**
-- Custom field support (including assignees stored as custom fields)
-- Issue, PR, and draft issue handling
-- Field value extraction and formatting
-- Complete project metadata
-
-### Utility Tools
-
-#### `userInfoOctokit`
-Returns authenticated user information from GitHub.
-
-**Parameters:** None
-
-**Returns:** Complete GitHub user profile information
-
-#### `getEFPDuneStatistics`
-Fetches EFP (Ethereum Follow Protocol) statistics and analytics from Dune Analytics dashboard with real-time blockchain data.
-
-**Parameters:**
-- `target` (string, optional): Filter queries by name containing this text (fetches all EFP queries if not provided)
-
-**Setup Required:**
-- Requires `DUNE_API_KEY` environment variable in `wrangler.jsonc`  
-- Dune Analytics account with API access (Plus plan or higher recommended)
-- Uses main Dune API with `X-DUNE-API-KEY` authentication header
-
-**Data Available:**
-- EFP user statistics and growth metrics
-- Token activity and transaction analytics
-- Protocol usage and adoption trends
-- Real-time blockchain data aggregation
-
-**Example Usage:**
 ```javascript
-// Get all EFP statistics (all 26 queries)
-const allStats = await getEFPDuneStatistics();
-
-// Filter for specific metrics
-const mintingStats = await getEFPDuneStatistics({
-  target: "minted"
-});
-
-// Get Base chain statistics only
-const baseStats = await getEFPDuneStatistics({
-  target: "Base"
-});
-
-// Get daily metrics
-const dailyStats = await getEFPDuneStatistics({
-  target: "daily"
-});
-```
-
-**Rate Limits:**
-- Free: 40 requests/minute
-- Plus: 200 requests/minute  
-- Premium: 1000 requests/minute
-
-**Configuration:**
-Add to your `wrangler.jsonc`:
-```json
 {
-  "vars": {
-    "DUNE_API_KEY": "your-dune-api-key"
-  }
+  "owner": "ethereumfollowprotocol",
+  "repo": "api",
+  "includeCommits": true,
+  "includeIssues": true, 
+  "includePRs": true,
+  "days": 30
 }
 ```
 
-#### `generateImage` (Restricted Access)
-Generates images using Cloudflare's Flux-1-Schnell model.
+#### **`getRecentActivity`**
+Monitor recent activity across organization repositories.
 
-**Parameters:**
-- `prompt` (string): Text description of the image to generate
-- `steps` (number, 4-8, default: 4): Number of diffusion steps for quality
-
-**Access Control:** Only available to users listed in the `ALLOWED_USERNAMES` configuration.
-
-## 📚 Practical Examples
-
-### Repository Analysis
 ```javascript
-// Get organization overview
-const repos = await listOrganizationRepos({
-  organization: "ethereumfollowprotocol",
-  sortBy: "updated",
-  limit: 10
-});
-
-// Deep dive into a specific repository
-const details = await getRepositoryDetails({
-  owner: "ethereumfollowprotocol",
-  repo: "api",
-  days: 14
-});
-
-// Analyze contributor patterns
-const contributors = await getContributorStats({
-  owner: "ethereumfollowprotocol",
-  repo: "api",
-  limit: 20
-});
+{
+  "organization": "ethereumfollowprotocol",
+  "days": 7,
+  "includePrivate": true,
+  "limit": 20
+}
 ```
 
-### Project Management
+#### **`searchIssuesAndPRs`**
+Search issues and pull requests across the entire organization.
+
 ```javascript
-// List all organization projects
-const projects = await listOrganizationProjects({
-  organization: "ethereumfollowprotocol"
-});
-
-// Get detailed project information
-const projectDetails = await getProjectDetails({
-  projectId: "PVT_kwDOABCD123",
-  includeItems: true,
-  limit: 50
-});
+{
+  "organization": "ethereumfollowprotocol",
+  "query": "is:issue is:open label:bug",
+  "state": "open",
+  "limit": 50
+}
 ```
 
-### Issue Tracking
+**GitHub Search Query Examples:**
+- `"author:username"` - Items by specific author
+- `"label:urgent"` - Items with specific label
+- `"is:pr is:open"` - Open pull requests only
+- `"bug in:title"` - "Bug" in title
+- `"created:>2024-01-01"` - Created after date
+
+### **📊 Analytics & Statistics**
+
+#### **`getEFPDuneStatistics`**
+Access real-time EFP (Ethereum Follow Protocol) blockchain analytics.
+
 ```javascript
-// Find all open bugs
-const bugs = await searchIssuesAndPRs({
-  organization: "ethereumfollowprotocol",
-  query: "bug is:issue is:open",
-  limit: 25
-});
-
-// Monitor recent activity
-const activity = await getRecentActivity({
-  organization: "ethereumfollowprotocol",
-  days: 7
-});
+{
+  "searchQuery": "minted"  // Filter for minting statistics
+}
+// or
+{
+  "searchQuery": "daily"   // Daily metrics
+}
+// or
+{}  // All 26+ available statistics
 ```
 
-## 🔒 Security & Authentication
+**Available Metrics:**
+- User growth and adoption trends
+- Token minting statistics (all chains)
+- Transaction volume analytics
+- Daily/monthly active users
+- Protocol usage patterns
 
-### OAuth Flow
-1. **Client Request**: MCP client connects to `/sse` endpoint
-2. **Authentication Challenge**: Server responds with OAuth challenge
-3. **GitHub Authorization**: User redirected to GitHub OAuth
-4. **Token Exchange**: Authorization code exchanged for access token
-5. **Session Creation**: Authenticated session established
-6. **API Access**: GitHub API calls made with user's permissions
+## 🔒 **Security & Authentication**
 
-### Security Features
-- **Encrypted Token Storage**: All tokens encrypted in Cloudflare KV
-- **Secure Cookie Handling**: HTTP-only, secure cookies with encryption
-- **Rate Limit Management**: Built-in GitHub API rate limit handling
-- **Scope Minimization**: Only requests necessary GitHub permissions
-- **Access Control**: Role-based access for sensitive features
+### **OAuth Security Model**
+- 🔐 **Encrypted Token Storage** in Cloudflare KV
+- 🍪 **Secure Cookie Handling** with HTTP-only flags
+- 🔑 **Minimal Scope Permissions** - only necessary GitHub scopes
+- 🛡️ **Rate Limit Protection** with automatic retry logic
+- 🔒 **HTTPS Enforced** - all communications encrypted
 
-### Required GitHub Permissions
-- `repo`: Repository access for reading code and metadata
-- `read:org`: Organization information access
-- `read:repo_hook`: Repository webhook information
-- `read:project`: GitHub Projects v2 access
+### **Required GitHub Permissions**
+```json
+{
+  "scopes": [
+    "repo",           // Repository access (read/write)
+    "read:org",       // Organization information  
+    "read:repo_hook", // Repository webhooks
+    "project"         // GitHub Projects v2 (read/write)
+  ]
+}
+```
 
-## ⚡ Performance & Optimization
+### **Access Control**
+- ✅ **User-based authentication** via GitHub OAuth
+- ✅ **Organization membership validation**
+- ✅ **Repository-level permissions** respected
+- ✅ **Project board access control** enforced
 
-### Caching Strategy
-- **API Response Caching**: 5-minute TTL for GitHub API responses
-- **Repository Metadata**: Cached for improved performance
-- **Project Information**: Cached to reduce API calls
-- **User Information**: Session-based caching
+## 🎛️ **Configuration**
 
-### Rate Limit Handling
-- **Automatic Retry**: Exponential backoff for rate-limited requests
-- **Quota Monitoring**: Track and report API usage
-- **Efficient Batching**: Minimize API calls through intelligent batching
-- **Cache Utilization**: Prefer cached responses when available
-
-## 🔧 Development
-
-### Local Development
+### **Environment Variables**
 ```bash
-# Start development server
-npm run dev
+# Required
+GITHUB_CLIENT_ID=your_github_oauth_client_id
+GITHUB_CLIENT_SECRET=your_github_oauth_client_secret
+COOKIE_ENCRYPTION_KEY=base64_encoded_32_byte_key
 
-# The server will be available at http://localhost:8787
-# Set up local GitHub OAuth app with callback: http://localhost:8787/callback
-
-# Create .dev.vars file for local environment
-GITHUB_CLIENT_ID=your_local_github_client_id
-GITHUB_CLIENT_SECRET=your_local_github_client_secret
-COOKIE_ENCRYPTION_KEY=your_encryption_key
+# Optional 
+DUNE_API_KEY=your_dune_analytics_api_key
+OCR_SPACE_API_KEY=your_ocr_space_api_key
 ```
 
-### Testing
+### **Project Configuration**
+Update `src/const.ts` to customize:
+```typescript
+export const PROJECT_BOARD_ID = "PVT_kwDOCIgXcc4Ah9ZW";
+
+export const PROJECT_STATUSES = [
+  "Big Projects", "Throw Backlog", "Jan Backlog", 
+  "EIK Backlog", "SIWE", "Todo - Jan", "Todo - Throw",
+  "Blocked", "In Progress", "Done"
+] as const;
+```
+
+## 📊 **Performance & Optimization**
+
+### **Caching Strategy**
+- ⚡ **5-minute API response caching** for GitHub data
+- 🚀 **Intelligent cache invalidation** on updates
+- 📈 **Rate limit optimization** with automatic backoff
+- 🔄 **Parallel API calls** for bulk operations
+
+### **Rate Limit Management**
+- 📊 **GitHub API**: 5,000 requests/hour (authenticated)
+- 📊 **Dune Analytics**: Based on plan (40-1000 requests/minute)
+- 🔄 **Automatic retry logic** with exponential backoff
+- ⚡ **Request batching** for efficiency
+
+## 🚨 **Troubleshooting**
+
+### **Common Issues**
+
+#### **Authentication Fails**
 ```bash
-# Type checking
-npm run type-check
-
-# Generate Cloudflare Worker types
-npm run cf-typegen
-
-# Test with MCP Inspector
-npx @modelcontextprotocol/inspector@latest
-# Enter: http://localhost:8787/sse
+# Check OAuth configuration
+curl -I https://your-worker.workers.dev/sse
+# Verify GitHub OAuth app callback URL matches exactly
 ```
 
-### Project Structure
+#### **Rate Limit Errors**
+- ✅ GitHub API provides 5,000 requests/hour when authenticated
+- ✅ Server implements automatic retry with backoff
+- ✅ Check remaining quota: included in error messages
+
+#### **Tool Not Found**
+- ✅ Ensure you're using the correct tool name
+- ✅ Check MCP client connection status
+- ✅ Verify OAuth authentication completed
+
+#### **Project Board Access**
+```javascript
+// Check if item exists
+{
+  "includeItems": true,
+  "limit": 200
+}
+// Use getProjectBoardDetails to see all available items
 ```
-src/
-├── index.ts                  # Main MCP server implementation and tool definitions
-├── github-handler.ts         # OAuth authentication and GitHub integration
-├── github-api-service.ts     # GitHub API client and data processing
-├── types.ts                  # TypeScript type definitions
-├── utils.ts                  # Utility functions and helpers
-└── workers-oauth-utils.ts    # OAuth-specific utility functions
 
-wrangler.jsonc               # Cloudflare Workers configuration
-package.json                 # Dependencies and scripts
-worker-configuration.d.ts    # Generated TypeScript types
-```
-
-### Adding New Tools
-1. **Define Tool Schema**: Add tool definition in `src/index.ts`
-2. **Implement API Methods**: Add required methods to `github-api-service.ts`
-3. **Update Types**: Add type definitions in `types.ts`
-4. **Test Implementation**: Use MCP Inspector to test functionality
-5. **Update Documentation**: Add tool documentation to README
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-#### OAuth Authentication Fails
-- **Check GitHub OAuth App**: Verify Client ID and Secret
-- **Callback URL**: Ensure callback URL matches exactly
-- **Permissions**: Verify required GitHub scopes are granted
-
-#### Rate Limit Errors
-- **Monitor Usage**: Check GitHub API rate limits
-- **Implement Caching**: Use built-in caching features
-- **Reduce Frequency**: Optimize request patterns
-
-#### Connection Issues
-- **Network Connectivity**: Test basic HTTP connectivity
-- **Firewall Settings**: Check for blocked ports
-- **DNS Resolution**: Verify domain resolution
-
-### Debug Commands
+### **Debug Commands**
 ```bash
-# View real-time logs
+# View deployment logs
 wrangler tail
 
-# Check deployment status
-wrangler deployments list
+# Test server endpoint
+curl -X GET https://your-worker.workers.dev/sse
 
-# Test specific endpoints
-curl -I https://team-mcp.your-subdomain.workers.dev/sse
-
-# Validate configuration
-wrangler whoami
+# Check OAuth flow
+curl -I https://your-worker.workers.dev/authorize
 ```
 
-### Error Codes
-- **401 Unauthorized**: OAuth token invalid or expired
-- **403 Forbidden**: Insufficient permissions for requested resource
-- **404 Not Found**: Repository or organization not found
-- **429 Too Many Requests**: GitHub API rate limit exceeded
+## 🤝 **Multi-Client Compatibility**
 
-## 🤝 Contributing
+### **Claude Integration**
+- ✅ **Full Feature Access** - All tools available
+- ✅ **Native OAuth** - Seamless authentication
+- ✅ **Rich Responses** - Detailed JSON formatting
+- ✅ **Workflow Integration** - Perfect for development automation
 
-### Development Setup
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes and add tests
-4. Run type checking: `npm run type-check`
-5. Submit a pull request
+### **ChatGPT Integration** 
+- ✅ **Deep Research Mode** - Optimized for ChatGPT Pro
+- ✅ **Search & Fetch** - Required ChatGPT tools implemented
+- ✅ **Read-Only Safe** - Respects current ChatGPT limitations
+- ✅ **Future Ready** - Will support write operations when available
 
-### Code Style
-- Use TypeScript for all new code
-- Follow existing code patterns and conventions
-- Add proper error handling and logging
-- Include JSDoc comments for public APIs
+### **Universal Compatibility**
+- 🔄 **Same Server** works with both AI assistants
+- 📊 **Optimized Responses** for each client type
+- 🛠️ **Backward Compatible** - No breaking changes
+- 🚀 **Future Proof** - Ready for new MCP clients
 
-### Testing
-- Test all new tools with MCP Inspector
-- Verify OAuth flow works correctly
-- Check rate limit handling
-- Validate error responses
+## 🔮 **Roadmap**
 
-## 📄 License
+### **Next Features**
+- 🔄 **Webhook Support** for real-time updates
+- 📊 **Enhanced Analytics** with custom dashboards  
+- 🔒 **Team-based Access Control** with role management
+- 🤖 **AI Workflow Automation** with smart suggestions
+- 📱 **Mobile Optimization** for MCP mobile clients
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+### **Integration Expansion**
+- 🐙 **GitLab Support** - Multi-platform repository management
+- 📈 **Linear Integration** - Issue tracking across platforms
+- 💬 **Slack/Discord** - Team notification integration
+- 📊 **Jira Sync** - Enterprise project management
 
-## 🆘 Support
+## 📄 **License**
 
-For issues and questions:
-- **GitHub Issues**: Create an issue in this repository
-- **Documentation**: Check the troubleshooting section above
-- **Cloudflare Docs**: [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- **MCP Docs**: [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
+MIT License - See [LICENSE](LICENSE) file for details.
+
+## 🆘 **Support**
+
+- 🐛 **Issues**: [GitHub Issues](https://github.com/ethereumfollowprotocol/team-mcp/issues)
+- 📖 **Documentation**: This README + inline tool descriptions
+- 🚀 **Cloudflare Docs**: [Workers Documentation](https://developers.cloudflare.com/workers/)
+- 🤖 **MCP Protocol**: [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ---
 
-**Built with ❤️ using Cloudflare Workers and the Model Context Protocol**
+**🎯 Built for modern AI-powered development teams who need comprehensive GitHub automation with both Claude and ChatGPT integration.**
 
-*This MCP server provides secure, scalable access to GitHub's ecosystem for AI assistants and other MCP-compatible tools.*
+*This MCP server transforms how AI assistants interact with GitHub, enabling full project management automation while maintaining enterprise-grade security and performance.*

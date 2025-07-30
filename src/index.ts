@@ -22,6 +22,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
   server = new McpServer({
     name: "Team MCP",
     version: "1.0.0",
+    description: "GitHub team management MCP server with Claude and ChatGPT support",
   });
 
   // Helper method to set project item status
@@ -1360,6 +1361,817 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         } catch (error: any) {
           return {
             content: [{ text: `Error comparing financial reports: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // GitHub Issue Management Tools
+
+    // Create a new GitHub issue
+    this.server.tool(
+      "createGitHubIssue",
+      "Create a new issue in a GitHub repository with full support for assignees, labels, and milestones",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        title: z.string().describe("The issue title"),
+        body: z.string().optional().describe("The issue description/body in markdown format"),
+        assignees: z.array(z.string()).optional().describe("Array of GitHub usernames to assign to the issue"),
+        labels: z.array(z.string()).optional().describe("Array of label names to apply to the issue"),
+        milestone: z.number().optional().describe("Milestone number to assign to the issue"),
+        addToProject: z.boolean().optional().default(false).describe("Whether to add the issue to the default project board"),
+      },
+      async ({ owner, repo, title, body, assignees, labels, milestone, addToProject }) => {
+        try {
+          // Create the issue
+          const issue = await githubApi.createIssue(owner, repo, title, body, assignees, labels, milestone);
+
+          let projectItemId = null;
+          if (addToProject) {
+            try {
+              // Add the issue to the default project if specified
+              const projectItem = await githubApi.addIssueToProject(PROJECT_BOARD_ID, issue.id);
+              projectItemId = projectItem.itemId;
+            } catch (projError: any) {
+              console.error(`Failed to add issue to project: ${projError.message}`);
+            }
+          }
+
+          const result = {
+            issue: {
+              id: issue.id,
+              number: issue.number,
+              url: issue.url,
+              title,
+              repository: `${owner}/${repo}`,
+            },
+            project: addToProject
+              ? {
+                  projectId: PROJECT_BOARD_ID,
+                  itemId: projectItemId,
+                  status: projectItemId ? "added" : "failed to add",
+                }
+              : null,
+            message: `Issue #${issue.number} created successfully${
+              addToProject && projectItemId ? " and added to project board" : ""
+            }`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error creating issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Comment on a GitHub issue
+    this.server.tool(
+      "commentOnGitHubIssue",
+      "Add a comment to an existing GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to comment on"),
+        body: z.string().describe("The comment body in markdown format"),
+      },
+      async ({ owner, repo, issueNumber, body }) => {
+        try {
+          const comment = await githubApi.commentOnIssue(owner, repo, issueNumber, body);
+
+          const result = {
+            comment: {
+              id: comment.id,
+              url: comment.url,
+            },
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            message: `Comment added successfully to issue #${issueNumber}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error commenting on issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Update issue assignees
+    this.server.tool(
+      "updateIssueAssignees",
+      "Update the assignees for a GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to update"),
+        assignees: z.array(z.string()).describe("Array of GitHub usernames to assign (replaces existing assignees)"),
+      },
+      async ({ owner, repo, issueNumber, assignees }) => {
+        try {
+          await githubApi.updateIssueAssignees(owner, repo, issueNumber, assignees);
+
+          const result = {
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            assignees,
+            message: `Assignees updated successfully for issue #${issueNumber}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error updating assignees: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Update issue labels
+    this.server.tool(
+      "updateIssueLabels",
+      "Update the labels for a GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to update"),
+        labels: z.array(z.string()).describe("Array of label names to apply (replaces existing labels)"),
+      },
+      async ({ owner, repo, issueNumber, labels }) => {
+        try {
+          await githubApi.updateIssueLabels(owner, repo, issueNumber, labels);
+
+          const result = {
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            labels,
+            message: `Labels updated successfully for issue #${issueNumber}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error updating labels: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Close a GitHub issue
+    this.server.tool(
+      "closeIssue",
+      "Close a GitHub issue with an optional reason",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to close"),
+        reason: z.enum(["COMPLETED", "NOT_PLANNED"]).optional().default("COMPLETED").describe("Reason for closing the issue"),
+      },
+      async ({ owner, repo, issueNumber, reason }) => {
+        try {
+          await githubApi.closeIssue(owner, repo, issueNumber, reason);
+
+          const result = {
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            reason,
+            message: `Issue #${issueNumber} closed successfully with reason: ${reason}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error closing issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Reopen a GitHub issue
+    this.server.tool(
+      "reopenIssue",
+      "Reopen a closed GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to reopen"),
+      },
+      async ({ owner, repo, issueNumber }) => {
+        try {
+          await githubApi.reopenIssue(owner, repo, issueNumber);
+
+          const result = {
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            message: `Issue #${issueNumber} reopened successfully`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error reopening issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Update issue title and/or body
+    this.server.tool(
+      "updateIssue",
+      "Update the title and/or body of a GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to update"),
+        title: z.string().optional().describe("New title for the issue (leave empty to keep current title)"),
+        body: z.string().optional().describe("New body for the issue (leave empty to keep current body)"),
+      },
+      async ({ owner, repo, issueNumber, title, body }) => {
+        try {
+          await githubApi.updateIssue(owner, repo, issueNumber, title, body);
+
+          const updates: string[] = [];
+          if (title) updates.push("title");
+          if (body !== undefined) updates.push("body");
+
+          const result = {
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            updated_fields: updates,
+            message: `Issue #${issueNumber} updated successfully (${updates.join(", ")})`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error updating issue: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Get issue details
+    this.server.tool(
+      "getIssueDetails",
+      "Get detailed information about a specific GitHub issue",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue number to get details for"),
+      },
+      async ({ owner, repo, issueNumber }) => {
+        try {
+          const issue = await githubApi.getIssueByNumber(owner, repo, issueNumber);
+
+          const result = {
+            issue: {
+              ...issue,
+              repository: `${owner}/${repo}`,
+            },
+            message: `Details retrieved for issue #${issueNumber}`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error getting issue details: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Add existing issue to project board
+    this.server.tool(
+      "addIssueToProject",
+      "Add an existing GitHub issue or pull request to the project board",
+      {
+        owner: z.string().describe("The repository owner (username or organization)"),
+        repo: z.string().describe("The repository name"),
+        issueNumber: z.number().describe("The issue or pull request number to add"),
+        initialStatus: z
+          .enum(PROJECT_STATUSES)
+          .optional()
+          .describe("Initial status to set for the item. Options: " + PROJECT_STATUSES.join(", ")),
+      },
+      async ({ owner, repo, issueNumber, initialStatus }) => {
+        try {
+          // Get the issue/PR ID
+          const contentId = await githubApi.getIssueIdByNumber(owner, repo, issueNumber);
+
+          // Add to project
+          const projectItem = await githubApi.addIssueToProject(PROJECT_BOARD_ID, contentId);
+
+          let statusUpdate = null;
+          if (initialStatus) {
+            // Set the initial status using our helper method
+            const statusResult = await this.setProjectItemStatus(githubApi, PROJECT_BOARD_ID, projectItem.itemId, initialStatus);
+            statusUpdate = {
+              success: statusResult.success,
+              value: statusResult.success ? initialStatus : null,
+              error: statusResult.error || null,
+            };
+          }
+
+          const result = {
+            projectId: PROJECT_BOARD_ID,
+            itemId: projectItem.itemId,
+            issue: {
+              number: issueNumber,
+              repository: `${owner}/${repo}`,
+            },
+            statusUpdate,
+            message: `Issue #${issueNumber} added to project successfully${
+              statusUpdate?.success
+                ? ` with status '${statusUpdate.value}'`
+                : statusUpdate?.error
+                  ? ` (status update failed: ${statusUpdate.error})`
+                  : ""
+            }`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error adding issue to project: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Project Board Assignment Management Tools
+
+    // Assign users to a project board item
+    this.server.tool(
+      "assignProjectBoardItem",
+      "Assign users to a project board item (works for both custom assignee fields and underlying GitHub issues)",
+      {
+        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+        usernames: z.array(z.string()).describe("Array of GitHub usernames to assign to the item"),
+      },
+      async ({ itemId, usernames }) => {
+        const projectId = PROJECT_BOARD_ID;
+
+        try {
+          await githubApi.assignProjectBoardItem(projectId, itemId, usernames);
+
+          const result = {
+            projectId,
+            itemId,
+            assignees: usernames,
+            message: `Successfully assigned ${usernames.join(", ")} to project board item`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error assigning users to project board item: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Remove assignees from a project board item
+    this.server.tool(
+      "unassignProjectBoardItem",
+      "Remove specific assignees from a project board item",
+      {
+        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+        usernames: z.array(z.string()).describe("Array of GitHub usernames to remove from the item"),
+      },
+      async ({ itemId, usernames }) => {
+        const projectId = PROJECT_BOARD_ID;
+
+        try {
+          await githubApi.unassignProjectBoardItem(projectId, itemId, usernames);
+
+          const result = {
+            projectId,
+            itemId,
+            removedAssignees: usernames,
+            message: `Successfully removed ${usernames.join(", ")} from project board item`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error removing assignees from project board item: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Add labels to a project board item
+    this.server.tool(
+      "labelProjectBoardItem",
+      "Add labels to a project board item (works for GitHub issues in projects)",
+      {
+        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+        labels: z.array(z.string()).describe("Array of label names to apply to the item"),
+      },
+      async ({ itemId, labels }) => {
+        const projectId = PROJECT_BOARD_ID;
+
+        try {
+          await githubApi.labelProjectBoardItem(projectId, itemId, labels);
+
+          const result = {
+            projectId,
+            itemId,
+            labels,
+            message: `Successfully added labels ${labels.join(", ")} to project board item`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error adding labels to project board item: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // Get available assignees for the project
+    this.server.tool(
+      "getProjectAssignableUsers",
+      "Get a list of users who can be assigned to project board items",
+      {},
+      async () => {
+        const projectId = PROJECT_BOARD_ID;
+
+        try {
+          const users = await githubApi.getProjectAssignableUsers(projectId);
+
+          const result = {
+            projectId,
+            total_assignable_users: users.length,
+            users: users.map(user => ({
+              login: user.login,
+              name: user.name,
+              avatar_url: user.avatarUrl,
+            })),
+            message: `Found ${users.length} assignable users for the project`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error getting assignable users: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // ChatGPT Compatibility Tools (Required for ChatGPT MCP Integration)
+
+    // ChatGPT-required search tool
+    this.server.tool(
+      "search",
+      "Search across GitHub repositories, issues, PRs, and project items (ChatGPT-compatible)",
+      {
+        query: z.string().describe("Search query to find relevant records across GitHub"),
+      },
+      async ({ query }) => {
+        try {
+          const searchResults: Array<{
+            id: string;
+            type: string;
+            title: string;
+            description: string;
+            url: string;
+          }> = [];
+
+          // Determine organization from context or use default
+          const organization = "ethereumfollowprotocol"; // Could be made configurable
+
+          // Search repositories if query suggests repository search
+          if (query.toLowerCase().includes("repo") || query.toLowerCase().includes("repository") || query.length < 20) {
+            try {
+              const repos = await githubApi.getOrganizationRepositories(organization, true);
+              const filtered = repos.filter(
+                (repo) =>
+                  repo.name.toLowerCase().includes(query.toLowerCase()) ||
+                  (repo.description && repo.description.toLowerCase().includes(query.toLowerCase())),
+              );
+
+              filtered.slice(0, 10).forEach((repo) => {
+                searchResults.push({
+                  id: `repo:${repo.full_name}`,
+                  type: "repository",
+                  title: repo.full_name,
+                  description: repo.description || "No description available",
+                  url: repo.html_url,
+                });
+              });
+            } catch (repoError) {
+              console.error("Repository search failed:", repoError);
+            }
+          }
+
+          // Search issues and PRs
+          try {
+            const issuesAndPRs = await githubApi.searchIssuesAndPRs(organization, query, "all");
+
+            // Add issues to results
+            issuesAndPRs.issues.slice(0, 8).forEach((issue) => {
+              const repoPath = issue.html_url.split("/").slice(-4, -2).join("/");
+              searchResults.push({
+                id: `issue:${repoPath}:${issue.number}`,
+                type: "issue",
+                title: `#${issue.number}: ${issue.title}`,
+                description: `Issue by ${issue.user.login} in ${repoPath}`,
+                url: issue.html_url,
+              });
+            });
+
+            // Add pull requests to results
+            issuesAndPRs.pull_requests.slice(0, 7).forEach((pr) => {
+              const repoPath = pr.html_url.split("/").slice(-4, -2).join("/");
+              searchResults.push({
+                id: `pr:${repoPath}:${pr.number}`,
+                type: "pull_request",
+                title: `#${pr.number}: ${pr.title}`,
+                description: `PR by ${pr.user.login} in ${repoPath}`,
+                url: pr.html_url,
+              });
+            });
+          } catch (searchError) {
+            console.error("Issues/PRs search failed:", searchError);
+          }
+
+          // Search project board items if query suggests project management
+          if (query.toLowerCase().includes("project") || query.toLowerCase().includes("task") || query.toLowerCase().includes("board")) {
+            try {
+              const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
+              const filteredItems = projectDetails.items.filter((item) =>
+                item.content.title.toLowerCase().includes(query.toLowerCase()),
+              );
+
+              filteredItems.slice(0, 5).forEach((item) => {
+                searchResults.push({
+                  id: `project-item:${item.id}`,
+                  type: `project_${item.type.toLowerCase()}`,
+                  title: item.content.title,
+                  description: `${item.type} in project board${item.content.assignees?.length ? ` (assigned to ${item.content.assignees.map(a => a.login).join(", ")})` : ""}`,
+                  url: item.content.url || `https://github.com/orgs/${organization}/projects`,
+                });
+              });
+            } catch (projectError) {
+              console.error("Project search failed:", projectError);
+            }
+          }
+
+          const result = {
+            query,
+            total_results: searchResults.length,
+            organization,
+            results: searchResults.slice(0, 25), // Limit total results
+            message: `Found ${searchResults.length} results for query "${query}"`,
+          };
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error searching: ${error.message}`, type: "text" }],
+          };
+        }
+      },
+    );
+
+    // ChatGPT-required fetch tool
+    this.server.tool(
+      "fetch",
+      "Fetch detailed information for a specific record by ID (ChatGPT-compatible)",
+      {
+        id: z.string().describe("The ID of the record to fetch (format: type:identifier)"),
+      },
+      async ({ id }) => {
+        try {
+          const [type, ...identifierParts] = id.split(":");
+          const identifier = identifierParts.join(":");
+
+          let result: any;
+
+          switch (type) {
+            case "repo":
+              const [owner, repo] = identifier.split("/");
+              if (!owner || !repo) {
+                throw new Error("Invalid repository identifier format. Expected: owner/repo");
+              }
+
+              // Get comprehensive repository details using existing API methods
+              const sinceDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+              
+              // Get repository info using Octokit directly
+              const octokit = new Octokit({ auth: this.props.accessToken });
+              const repoInfo = await octokit.rest.repos.get({ owner, repo });
+
+              // Get activity data in parallel
+              const [commits, issues, prs, contributors] = await Promise.all([
+                githubApi.getRecentCommits(owner, repo, sinceDate),
+                githubApi.getRepositoryIssues(owner, repo, "all", sinceDate),
+                githubApi.getRepositoryPullRequests(owner, repo, "all"),
+                githubApi.getContributors(owner, repo),
+              ]);
+
+              // Filter issues vs PRs
+              const actualIssues = issues.filter((issue) => !issue.pull_request);
+              const recentPRs = prs.filter((pr) => new Date(pr.updated_at) > new Date(sinceDate));
+
+              const repoDetails = {
+                repository: {
+                  name: repoInfo.data.name,
+                  full_name: repoInfo.data.full_name,
+                  description: repoInfo.data.description,
+                  language: repoInfo.data.language,
+                  stars: repoInfo.data.stargazers_count,
+                  forks: repoInfo.data.forks_count,
+                  open_issues: repoInfo.data.open_issues_count,
+                  private: repoInfo.data.private,
+                  created_at: repoInfo.data.created_at,
+                  updated_at: repoInfo.data.updated_at,
+                  pushed_at: repoInfo.data.pushed_at,
+                  default_branch: repoInfo.data.default_branch,
+                  url: repoInfo.data.html_url,
+                },
+                recent_commits: commits.slice(0, 10).map((commit) => ({
+                  sha: commit.sha.substring(0, 7),
+                  author: commit.commit.author.name,
+                  date: commit.commit.author.date,
+                  message: commit.commit.message.split("\n")[0],
+                  url: commit.html_url,
+                })),
+                recent_issues: actualIssues.slice(0, 10).map((issue) => ({
+                  number: issue.number,
+                  title: issue.title,
+                  state: issue.state,
+                  author: issue.user.login,
+                  created_at: issue.created_at,
+                  labels: issue.labels.map((l) => l.name),
+                  url: issue.html_url,
+                })),
+                recent_pull_requests: recentPRs.slice(0, 10).map((pr) => ({
+                  number: pr.number,
+                  title: pr.title,
+                  state: pr.state,
+                  author: pr.user.login,
+                  created_at: pr.created_at,
+                  merged: pr.merged,
+                  draft: pr.draft,
+                  head_branch: pr.head.ref,
+                  base_branch: pr.base.ref,
+                  url: pr.html_url,
+                })),
+                contributors: contributors.slice(0, 10).map((contributor) => ({
+                  login: contributor.login,
+                  contributions: contributor.contributions,
+                  avatar_url: contributor.avatar_url,
+                })),
+                statistics: {
+                  recent_commits: commits.length,
+                  recent_issues: actualIssues.length,
+                  recent_prs: recentPRs.length,
+                  total_contributors: contributors.length,
+                },
+              };
+              
+              result = {
+                id,
+                type: "repository",
+                data: repoDetails,
+                metadata: {
+                  fetched_at: new Date().toISOString(),
+                  source: "github_api",
+                },
+              };
+              break;
+
+            case "issue":
+              const [issueOwner, issueRepo, issueNumberStr] = identifier.split(":");
+              const issueNumber = parseInt(issueNumberStr);
+
+              if (!issueOwner || !issueRepo || !issueNumber) {
+                throw new Error("Invalid issue identifier format. Expected: owner:repo:number");
+              }
+
+              const issue = await githubApi.getIssueByNumber(issueOwner, issueRepo, issueNumber);
+              result = {
+                id,
+                type: "issue",
+                data: {
+                  ...issue,
+                  repository: `${issueOwner}/${issueRepo}`,
+                },
+                metadata: {
+                  fetched_at: new Date().toISOString(),
+                  source: "github_api",
+                },
+              };
+              break;
+
+            case "pr":
+              const [prOwner, prRepo, prNumberStr] = identifier.split(":");
+              const prNumber = parseInt(prNumberStr);
+
+              if (!prOwner || !prRepo || !prNumber) {
+                throw new Error("Invalid PR identifier format. Expected: owner:repo:number");
+              }
+
+              // Reuse issue fetcher as PRs are issues in GitHub's API
+              const pr = await githubApi.getIssueByNumber(prOwner, prRepo, prNumber);
+              result = {
+                id,
+                type: "pull_request",
+                data: {
+                  ...pr,
+                  repository: `${prOwner}/${prRepo}`,
+                },
+                metadata: {
+                  fetched_at: new Date().toISOString(),
+                  source: "github_api",
+                },
+              };
+              break;
+
+            case "project-item":
+              const itemId = identifier;
+              const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
+              const item = projectDetails.items.find((i) => i.id === itemId);
+
+              if (!item) {
+                throw new Error(`Project item with ID '${itemId}' not found`);
+              }
+
+              result = {
+                id,
+                type: "project_item",
+                data: {
+                  ...item,
+                  project: {
+                    id: PROJECT_BOARD_ID,
+                    title: projectDetails.project.title,
+                    url: projectDetails.project.url,
+                  },
+                },
+                metadata: {
+                  fetched_at: new Date().toISOString(),
+                  source: "github_projects_v2",
+                },
+              };
+              break;
+
+            default:
+              throw new Error(`Unknown record type: ${type}. Supported types: repo, issue, pr, project-item`);
+          }
+
+          return {
+            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          };
+        } catch (error: any) {
+          return {
+            content: [{ text: `Error fetching record: ${error.message}`, type: "text" }],
           };
         }
       },

@@ -714,140 +714,253 @@ export class GitHubApiService {
   }
 
   // Create a new issue in a repository
-  // async createIssue(
-  //   owner: string,
-  //   repo: string,
-  //   title: string,
-  //   body?: string,
-  //   assignees?: string[],
-  //   labels?: string[]
-  // ): Promise<{ id: string; number: number; url: string }> {
-  //   try {
-  //     // First, get the repository ID
-  //     const repoQuery = `
-  //       query($owner: String!, $name: String!) {
-  //         repository(owner: $owner, name: $name) {
-  //           id
-  //         }
-  //       }
-  //     `;
+  async createIssue(
+    owner: string,
+    repo: string,
+    title: string,
+    body?: string,
+    assignees?: string[],
+    labels?: string[],
+    milestone?: number
+  ): Promise<{ id: string; number: number; url: string }> {
+    try {
+      // First, get the repository ID
+      const repoQuery = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            id
+          }
+        }
+      `;
 
-  //     const repoResponse = await this.octokit.graphql<{
-  //       repository: { id: string };
-  //     }>(repoQuery, { owner, name: repo });
+      const repoResponse = await this._octokit.graphql<{
+        repository: { id: string };
+      }>(repoQuery, { owner, name: repo });
 
-  //     const repositoryId = repoResponse.repository.id;
+      const repositoryId = repoResponse.repository.id;
 
-  //     // Get label IDs if labels are provided
-  //     let labelIds: string[] = [];
-  //     if (labels && labels.length > 0) {
-  //       const labelQuery = `
-  //         query($owner: String!, $name: String!) {
-  //           repository(owner: $owner, name: $name) {
-  //             labels(first: 100) {
-  //               nodes {
-  //                 id
-  //                 name
-  //               }
-  //             }
-  //           }
-  //         }
-  //       `;
+      // Get label IDs if labels are provided
+      let labelIds: string[] = [];
+      if (labels && labels.length > 0) {
+        const labelQuery = `
+          query($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+              labels(first: 100) {
+                nodes {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        `;
 
-  //       const labelResponse = await this.octokit.graphql<{
-  //         repository: {
-  //           labels: {
-  //             nodes: Array<{ id: string; name: string }>;
-  //           };
-  //         };
-  //       }>(labelQuery, { owner, name: repo });
+        const labelResponse = await this._octokit.graphql<{
+          repository: {
+            labels: {
+              nodes: Array<{ id: string; name: string }>;
+            };
+          };
+        }>(labelQuery, { owner, name: repo });
 
-  //       const availableLabels = labelResponse.repository.labels.nodes;
-  //       labelIds = labels
-  //         .map(labelName => {
-  //           const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
-  //           return label?.id;
-  //         })
-  //         .filter((id): id is string => id !== undefined);
-  //     }
+        const availableLabels = labelResponse.repository.labels.nodes;
+        labelIds = labels
+          .map(labelName => {
+            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+            return label?.id;
+          })
+          .filter((id): id is string => id !== undefined);
+      }
 
-  //     // Create the issue
-  //     const createIssueMutation = `
-  //       mutation($input: CreateIssueInput!) {
-  //         createIssue(input: $input) {
-  //           issue {
-  //             id
-  //             number
-  //             url
-  //           }
-  //         }
-  //       }
-  //     `;
+      // Get assignee IDs if assignees are provided
+      let assigneeIds: string[] = [];
+      if (assignees && assignees.length > 0) {
+        // Use multiple individual user queries since GitHub doesn't have a bulk users query
+        const assigneePromises = assignees.map(async (login) => {
+          const assigneeQuery = `
+            query($login: String!) {
+              user(login: $login) {
+                id
+                login
+              }
+            }
+          `;
 
-  //     const input: any = {
-  //       repositoryId,
-  //       title,
-  //     };
+          try {
+            const assigneeResponse = await this._octokit.graphql<{
+              user: { id: string; login: string };
+            }>(assigneeQuery, { login });
 
-  //     if (body) input.body = body;
-  //     // Note: assigneeIds would need to be GitHub user IDs, not usernames
-  //     // For now, we'll skip assignees in the creation mutation and handle them separately if needed
-  //     if (labelIds.length > 0) input.labelIds = labelIds;
+            return assigneeResponse.user.id;
+          } catch (error) {
+            console.warn(`Failed to find user ${login}:`, error);
+            return null;
+          }
+        });
 
-  //     const response = await this.octokit.graphql<{
-  //       createIssue: {
-  //         issue: {
-  //           id: string;
-  //           number: number;
-  //           url: string;
-  //         };
-  //       };
-  //     }>(createIssueMutation, { input });
+        const results = await Promise.all(assigneePromises);
+        assigneeIds = results.filter((id): id is string => id !== null);
+      }
 
-  //     return response.createIssue.issue;
-  //   } catch (error: any) {
-  //     throw new Error(`Failed to create issue in ${owner}/${repo}: ${error.message}`);
-  //   }
-  // }
+      // Get milestone ID if milestone number is provided
+      let milestoneId: string | undefined;
+      if (milestone !== undefined) {
+        const milestoneQuery = `
+          query($owner: String!, $name: String!, $number: Int!) {
+            repository(owner: $owner, name: $name) {
+              milestone(number: $number) {
+                id
+              }
+            }
+          }
+        `;
 
-  // // Add an issue or pull request to a project board
-  // async addIssueToProject(projectId: string, contentId: string): Promise<{ itemId: string }> {
-  //   try {
-  //     const mutation = `
-  //       mutation($projectId: ID!, $contentId: ID!) {
-  //         addProjectV2ItemById(input: {
-  //           projectId: $projectId,
-  //           contentId: $contentId
-  //         }) {
-  //           item {
-  //             id
-  //           }
-  //         }
-  //       }
-  //     `;
+        try {
+          const milestoneResponse = await this._octokit.graphql<{
+            repository: {
+              milestone: { id: string };
+            };
+          }>(milestoneQuery, { owner, name: repo, number: milestone });
 
-  //     const response = await this.octokit.graphql<{
-  //       addProjectV2ItemById: {
-  //         item: {
-  //           id: string;
-  //         };
-  //       };
-  //     }>(mutation, { projectId, contentId });
+          milestoneId = milestoneResponse.repository.milestone.id;
+        } catch (error) {
+          console.warn(`Milestone ${milestone} not found, proceeding without milestone`);
+        }
+      }
 
-  //     return { itemId: response.addProjectV2ItemById.item.id };
-  //   } catch (error: any) {
-  //     // Check if the error is because the item already exists
-  //     if (error.message.includes("already exists")) {
-  //       // Try to find the existing item
-  //       const projectDetails = await this.getProjectDetails(projectId);
-  //       const existingItem = projectDetails.items.find(item => item.content.id === contentId);
-  //       if (existingItem) {
-  //         return { itemId: existingItem.id };
-  //       }
-  //     }
-  //     throw new Error(`Failed to add issue to project ${projectId}: ${error.message}`);
-  //   }
-  // }
+      // Create the issue
+      const createIssueMutation = `
+        mutation($input: CreateIssueInput!) {
+          createIssue(input: $input) {
+            issue {
+              id
+              number
+              url
+              title
+              body
+              state
+              author {
+                login
+              }
+              assignees(first: 10) {
+                nodes {
+                  login
+                }
+              }
+              labels(first: 10) {
+                nodes {
+                  name
+                  color
+                }
+              }
+              milestone {
+                title
+                number
+              }
+            }
+          }
+        }
+      `;
+
+      const input: any = {
+        repositoryId,
+        title,
+      };
+
+      if (body) input.body = body;
+      if (assigneeIds.length > 0) input.assigneeIds = assigneeIds;
+      if (labelIds.length > 0) input.labelIds = labelIds;
+      if (milestoneId) input.milestoneId = milestoneId;
+
+      const response = await this._octokit.graphql<{
+        createIssue: {
+          issue: {
+            id: string;
+            number: number;
+            url: string;
+            title: string;
+            body: string;
+            state: string;
+            author: { login: string };
+            assignees: { nodes: Array<{ login: string }> };
+            labels: { nodes: Array<{ name: string; color: string }> };
+            milestone: { title: string; number: number } | null;
+          };
+        };
+      }>(createIssueMutation, { input });
+
+      return {
+        id: response.createIssue.issue.id,
+        number: response.createIssue.issue.number,
+        url: response.createIssue.issue.url,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create issue in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Add an issue or pull request to a project board
+  async addIssueToProject(projectId: string, contentId: string): Promise<{ itemId: string }> {
+    try {
+      const mutation = `
+        mutation($projectId: ID!, $contentId: ID!) {
+          addProjectV2ItemById(input: {
+            projectId: $projectId,
+            contentId: $contentId
+          }) {
+            item {
+              id
+              type
+              content {
+                __typename
+                ... on Issue {
+                  id
+                  number
+                  title
+                  url
+                }
+                ... on PullRequest {
+                  id
+                  number
+                  title
+                  url
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        addProjectV2ItemById: {
+          item: {
+            id: string;
+            type: string;
+            content: {
+              __typename: string;
+              id: string;
+              number: number;
+              title: string;
+              url: string;
+            };
+          };
+        };
+      }>(mutation, { projectId, contentId });
+
+      return { itemId: response.addProjectV2ItemById.item.id };
+    } catch (error: any) {
+      // Check if the error is because the item already exists
+      if (error.message.includes("already exists") || error.message.includes("Item already exists")) {
+        // Try to find the existing item
+        const projectDetails = await this.getProjectDetails(projectId);
+        const existingItem = projectDetails.items.find(item => item.content.id === contentId);
+        if (existingItem) {
+          return { itemId: existingItem.id };
+        }
+      }
+      throw new Error(`Failed to add issue to project ${projectId}: ${error.message}`);
+    }
+  }
 
   // Update a project item's field value
   async updateProjectItemField(
@@ -964,6 +1077,548 @@ export class GitHubApiService {
         return prResponse.repository.pullRequest.id;
       } catch (prError: any) {
         throw new Error(`Failed to find issue or PR #${number} in ${owner}/${repo}: ${error.message}`);
+      }
+    }
+  }
+
+  // Comment on a GitHub issue
+  async commentOnIssue(owner: string, repo: string, issueNumber: number, body: string): Promise<{ id: string; url: string }> {
+    try {
+      // First get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      const mutation = `
+        mutation($issueId: ID!, $body: String!) {
+          addComment(input: {
+            subjectId: $issueId,
+            body: $body
+          }) {
+            commentEdge {
+              node {
+                id
+                url
+                body
+                author {
+                  login
+                }
+                createdAt
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        addComment: {
+          commentEdge: {
+            node: {
+              id: string;
+              url: string;
+              body: string;
+              author: { login: string };
+              createdAt: string;
+            };
+          };
+        };
+      }>(mutation, { issueId, body });
+
+      return {
+        id: response.addComment.commentEdge.node.id,
+        url: response.addComment.commentEdge.node.url,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to comment on issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Update issue assignees
+  async updateIssueAssignees(owner: string, repo: string, issueNumber: number, assignees: string[]): Promise<boolean> {
+    try {
+      // Get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      // Get assignee IDs
+      let assigneeIds: string[] = [];
+      if (assignees.length > 0) {
+        // Use multiple individual user queries since GitHub doesn't have a bulk users query
+        const assigneePromises = assignees.map(async (login) => {
+          const assigneeQuery = `
+            query($login: String!) {
+              user(login: $login) {
+                id
+                login
+              }
+            }
+          `;
+
+          try {
+            const assigneeResponse = await this._octokit.graphql<{
+              user: { id: string; login: string };
+            }>(assigneeQuery, { login });
+
+            return assigneeResponse.user.id;
+          } catch (error) {
+            console.warn(`Failed to find user ${login}:`, error);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(assigneePromises);
+        assigneeIds = results.filter((id): id is string => id !== null);
+      }
+
+      const mutation = `
+        mutation($issueId: ID!, $assigneeIds: [ID!]!) {
+          updateIssue(input: {
+            id: $issueId,
+            assigneeIds: $assigneeIds
+          }) {
+            issue {
+              id
+              assignees(first: 10) {
+                nodes {
+                  login
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, { issueId, assigneeIds });
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to update assignees for issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Update issue labels
+  async updateIssueLabels(owner: string, repo: string, issueNumber: number, labels: string[]): Promise<boolean> {
+    try {
+      // Get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      // Get label IDs
+      let labelIds: string[] = [];
+      if (labels.length > 0) {
+        const labelQuery = `
+          query($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+              labels(first: 100) {
+                nodes {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        `;
+
+        const labelResponse = await this._octokit.graphql<{
+          repository: {
+            labels: {
+              nodes: Array<{ id: string; name: string }>;
+            };
+          };
+        }>(labelQuery, { owner, name: repo });
+
+        const availableLabels = labelResponse.repository.labels.nodes;
+        labelIds = labels
+          .map(labelName => {
+            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+            return label?.id;
+          })
+          .filter((id): id is string => id !== undefined);
+      }
+
+      const mutation = `
+        mutation($issueId: ID!, $labelIds: [ID!]!) {
+          updateIssue(input: {
+            id: $issueId,
+            labelIds: $labelIds
+          }) {
+            issue {
+              id
+              labels(first: 10) {
+                nodes {
+                  name
+                  color
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, { issueId, labelIds });
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to update labels for issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Close an issue
+  async closeIssue(owner: string, repo: string, issueNumber: number, reason?: 'COMPLETED' | 'NOT_PLANNED'): Promise<boolean> {
+    try {
+      // Get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      const mutation = `
+        mutation($issueId: ID!, $reason: IssueClosedStateReason) {
+          closeIssue(input: {
+            issueId: $issueId,
+            stateReason: $reason
+          }) {
+            issue {
+              id
+              state
+              stateReason
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, { 
+        issueId, 
+        reason: reason || 'COMPLETED'
+      });
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to close issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Reopen an issue
+  async reopenIssue(owner: string, repo: string, issueNumber: number): Promise<boolean> {
+    try {
+      // Get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      const mutation = `
+        mutation($issueId: ID!) {
+          reopenIssue(input: {
+            issueId: $issueId
+          }) {
+            issue {
+              id
+              state
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, { issueId });
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to reopen issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Update issue title and/or body
+  async updateIssue(owner: string, repo: string, issueNumber: number, title?: string, body?: string): Promise<boolean> {
+    try {
+      if (!title && !body) {
+        throw new Error("At least one of title or body must be provided");
+      }
+
+      // Get the issue ID
+      const issueId = await this.getIssueIdByNumber(owner, repo, issueNumber);
+
+      const input: any = { id: issueId };
+      if (title) input.title = title;
+      if (body !== undefined) input.body = body;
+
+      const mutation = `
+        mutation($input: UpdateIssueInput!) {
+          updateIssue(input: $input) {
+            issue {
+              id
+              title
+              body
+              updatedAt
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, { input });
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to update issue #${issueNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Get issue details by number
+  async getIssueByNumber(owner: string, repo: string, issueNumber: number): Promise<any> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!, $number: Int!) {
+          repository(owner: $owner, name: $name) {
+            issue(number: $number) {
+              id
+              number
+              title
+              body
+              state
+              stateReason
+              author {
+                login
+                avatarUrl
+              }
+              assignees(first: 10) {
+                nodes {
+                  login
+                  avatarUrl
+                }
+              }
+              labels(first: 10) {
+                nodes {
+                  name
+                  color
+                }
+              }
+              milestone {
+                title
+                number
+                description
+                dueOn
+              }
+              comments(first: 1) {
+                totalCount
+              }
+              reactions(first: 1) {
+                totalCount
+              }
+              createdAt
+              updatedAt
+              closedAt
+              url
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        repository: {
+          issue: any;
+        };
+      }>(query, { owner, name: repo, number: issueNumber });
+
+      return response.repository.issue;
+    } catch (error: any) {
+      throw new Error(`Failed to get issue #${issueNumber} from ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Assign users to a project board item (for issues in projects)
+  async assignProjectBoardItem(projectId: string, itemId: string, usernames: string[]): Promise<boolean> {
+    try {
+      // Get the project details to find the Assignees field
+      const projectDetails = await this.getProjectDetails(projectId);
+      const assigneesField = projectDetails.fields.find(
+        (f) => f.name.toLowerCase() === "assignees" && f.dataType === "SINGLE_SELECT"
+      );
+
+      if (!assigneesField) {
+        // If no custom assignees field exists, try to update the built-in assignees for the underlying issue
+        // First, get the project item details to see if it's an issue
+        const item = projectDetails.items.find((i) => i.id === itemId);
+        if (!item) {
+          throw new Error(`Project item with ID '${itemId}' not found`);
+        }
+
+        if (item.type === "ISSUE" || item.type === "PULL_REQUEST") {
+          // For issues and PRs, we can update assignees directly on the underlying GitHub issue
+          // This requires getting the repository and issue number from the content
+          if (item.content.url) {
+            const urlParts = item.content.url.split('/');
+            const owner = urlParts[urlParts.length - 4];
+            const repo = urlParts[urlParts.length - 3];
+            const number = item.content.number;
+
+            if (number && item.type === "ISSUE") {
+              await this.updateIssueAssignees(owner, repo, number, usernames);
+              return true;
+            }
+          }
+        }
+        
+        throw new Error("No assignees field found in project and item is not a GitHub issue that can be assigned");
+      }
+
+      // Get user IDs for the usernames
+      let assigneeIds: string[] = [];
+      if (usernames.length > 0) {
+        // Use multiple individual user queries since GitHub doesn't have a bulk users query
+        const assigneePromises = usernames.map(async (login) => {
+          const assigneeQuery = `
+            query($login: String!) {
+              user(login: $login) {
+                id
+                login
+              }
+            }
+          `;
+
+          try {
+            const assigneeResponse = await this._octokit.graphql<{
+              user: { id: string; login: string };
+            }>(assigneeQuery, { login });
+
+            return assigneeResponse.user.id;
+          } catch (error) {
+            console.warn(`Failed to find user ${login}:`, error);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(assigneePromises);
+        assigneeIds = results.filter((id): id is string => id !== null);
+      }
+
+      // For custom assignees field, we need to update it as a user field
+      const mutation = `
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $userIds: [ID!]!) {
+          updateProjectV2ItemFieldValue(input: {
+            projectId: $projectId,
+            itemId: $itemId,
+            fieldId: $fieldId,
+            value: {
+              userIds: $userIds
+            }
+          }) {
+            projectV2Item {
+              id
+            }
+          }
+        }
+      `;
+
+      await this._octokit.graphql(mutation, {
+        projectId,
+        itemId,
+        fieldId: assigneesField.id,
+        userIds: assigneeIds,
+      });
+
+      return true;
+    } catch (error: any) {
+      throw new Error(`Failed to assign users to project board item: ${error.message}`);
+    }
+  }
+
+  // Remove specific assignees from a project board item
+  async unassignProjectBoardItem(projectId: string, itemId: string, usernames: string[]): Promise<boolean> {
+    try {
+      // Get current assignees first
+      const projectDetails = await this.getProjectDetails(projectId);
+      const item = projectDetails.items.find((i) => i.id === itemId);
+      
+      if (!item) {
+        throw new Error(`Project item with ID '${itemId}' not found`);
+      }
+
+      // Get current assignees from the item
+      const currentAssignees = item.content.assignees || [];
+      const currentUsernames = currentAssignees.map(a => a.login);
+      
+      // Remove the specified usernames
+      const remainingUsernames = currentUsernames.filter(username => !usernames.includes(username));
+      
+      // Update with the remaining assignees
+      return await this.assignProjectBoardItem(projectId, itemId, remainingUsernames);
+    } catch (error: any) {
+      throw new Error(`Failed to unassign users from project board item: ${error.message}`);
+    }
+  }
+
+  // Add labels to a project board item (for issues in projects)
+  async labelProjectBoardItem(projectId: string, itemId: string, labels: string[]): Promise<boolean> {
+    try {
+      // Get the project item details
+      const projectDetails = await this.getProjectDetails(projectId);
+      const item = projectDetails.items.find((i) => i.id === itemId);
+      
+      if (!item) {
+        throw new Error(`Project item with ID '${itemId}' not found`);
+      }
+
+      if (item.type === "ISSUE" || item.type === "PULL_REQUEST") {
+        // For issues and PRs, we can update labels directly on the underlying GitHub issue
+        if (item.content.url) {
+          const urlParts = item.content.url.split('/');
+          const owner = urlParts[urlParts.length - 4];
+          const repo = urlParts[urlParts.length - 3];
+          const number = item.content.number;
+
+          if (number && item.type === "ISSUE") {
+            await this.updateIssueLabels(owner, repo, number, labels);
+            return true;
+          }
+        }
+      }
+
+      throw new Error("Item is not a GitHub issue that can be labeled. Draft issues do not support labels through the GitHub API.");
+    } catch (error: any) {
+      throw new Error(`Failed to label project board item: ${error.message}`);
+    }
+  }
+
+  // Get available assignees for a project (organization members)
+  async getProjectAssignableUsers(projectId: string): Promise<Array<{ login: string; name: string; avatarUrl: string }>> {
+    try {
+      // Get project details to determine the organization
+      const projectDetails = await this.getProjectDetails(projectId);
+      const ownerLogin = projectDetails.project.owner.login;
+
+      // Get organization members using REST API since GraphQL doesn't expose members
+      // This requires the authenticated user to be a member of the organization
+      const response = await this._octokit.rest.orgs.listMembers({
+        org: ownerLogin,
+        per_page: 100,
+      });
+
+      return response.data.map(member => ({
+        login: member.login,
+        name: member.name || member.login, // Use login as fallback if name is null
+        avatarUrl: member.avatar_url,
+      }));
+    } catch (error: any) {
+      // If we can't get org members (due to permissions), try getting users from project items
+      console.warn(`Could not get organization members, falling back to project contributors: ${error.message}`);
+      
+      try {
+        // Get users who are already assigned to items in the project
+        const projectDetails = await this.getProjectDetails(projectId);
+        const assignedUsers = new Map<string, { login: string; name: string; avatarUrl: string }>();
+        
+        // Extract unique users from project items
+        projectDetails.items.forEach(item => {
+          if (item.content.assignees) {
+            item.content.assignees.forEach((assignee: { login: string; avatarUrl: string }) => {
+              assignedUsers.set(assignee.login, {
+                login: assignee.login,
+                name: assignee.login, // We don't have names in this context
+                avatarUrl: assignee.avatarUrl,
+              });
+            });
+          }
+        });
+
+        const uniqueUsers = Array.from(assignedUsers.values());
+        
+        // If we still don't have users, return a helpful message
+        if (uniqueUsers.length === 0) {
+          return [{
+            login: "No assignable users found",
+            name: "Try adding users to issues in this project first",
+            avatarUrl: "",
+          }];
+        }
+
+        return uniqueUsers;
+      } catch (fallbackError: any) {
+        throw new Error(`Failed to get assignable users for project: ${error.message}. Fallback also failed: ${fallbackError.message}`);
       }
     }
   }
