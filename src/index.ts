@@ -1731,6 +1731,167 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
     );
 
+    // GitHub Pull Request Management Tools
+
+    // Create a new pull request
+    this.server.tool(
+      "createPullRequest",
+      "Create a new pull request in a GitHub repository",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        title: z.string().describe("Pull request title"),
+        head: z.string().describe("The name of the branch where your changes are implemented (source branch)"),
+        base: z.string().describe("The name of the branch you want the changes pulled into (target branch, usually 'main' or 'master')"),
+        body: z.string().optional().describe("Pull request description in markdown format"),
+        draft: z.boolean().optional().default(false).describe("Create as a draft pull request"),
+        maintainerCanModify: z.boolean().optional().default(true).describe("Allow maintainers to modify the pull request"),
+      },
+      async ({ owner, repo, title, head, base, body, draft, maintainerCanModify }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const pr = await githubApi.createPullRequest(owner, repo, title, head, base, body, draft, maintainerCanModify);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  pull_request: {
+                    id: pr.id,
+                    number: pr.number,
+                    url: pr.url,
+                    title,
+                    head_branch: head,
+                    base_branch: base,
+                    is_draft: draft,
+                    mergeable_state: pr.mergeableState,
+                    repository: `${owner}/${repo}`,
+                  },
+                  message: `Pull request #${pr.number} created successfully`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error creating pull request: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Comment on a pull request
+    this.server.tool(
+      "commentOnPullRequest",
+      "Add a comment to an existing GitHub pull request",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        prNumber: z.number().describe("Pull request number to comment on"),
+        body: z.string().describe("Comment body in markdown format"),
+      },
+      async ({ owner, repo, prNumber, body }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const comment = await githubApi.commentOnPullRequest(owner, repo, prNumber, body);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  comment: {
+                    id: comment.id,
+                    url: comment.url,
+                  },
+                  pull_request: {
+                    number: prNumber,
+                    repository: `${owner}/${repo}`,
+                  },
+                  message: `Comment added successfully to pull request #${prNumber}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error commenting on pull request: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Get pull request details
+    this.server.tool(
+      "getPullRequestDetails",
+      "Get detailed information about a specific GitHub pull request",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        prNumber: z.number().describe("Pull request number to get details for"),
+      },
+      async ({ owner, repo, prNumber }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const pr = await githubApi.getPullRequestDetails(owner, repo, prNumber);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  pull_request: {
+                    id: pr.id,
+                    number: pr.number,
+                    title: pr.title,
+                    body: pr.body,
+                    state: pr.state,
+                    is_draft: pr.isDraft,
+                    author: pr.author,
+                    base_branch: pr.baseRefName,
+                    head_branch: pr.headRefName,
+                    mergeable: pr.mergeable,
+                    merge_state: pr.mergeStateStatus,
+                    review_decision: pr.reviewDecision,
+                    reviews: pr.reviews,
+                    comment_count: pr.comments.totalCount,
+                    created_at: pr.createdAt,
+                    updated_at: pr.updatedAt,
+                    url: pr.url,
+                    repository: `${owner}/${repo}`,
+                  },
+                  message: `Details retrieved for pull request #${prNumber}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error getting pull request details: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
     // Project Board Assignment Management Tools
 
     // Assign users to a project board item

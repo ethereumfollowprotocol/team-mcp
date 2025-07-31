@@ -1622,4 +1622,344 @@ export class GitHubApiService {
       }
     }
   }
+
+  // Pull Request Management Methods
+  async createPullRequest(
+    owner: string,
+    repo: string,
+    title: string,
+    head: string,
+    base: string,
+    body?: string,
+    draft: boolean = false,
+    maintainerCanModify: boolean = true
+  ): Promise<{ id: string; number: number; url: string; mergeableState?: string }> {
+    try {
+      // Get the repository ID for GraphQL mutation
+      const repoQuery = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            id
+          }
+        }
+      `;
+
+      const repoResponse = await this._octokit.graphql<{
+        repository: { id: string };
+      }>(repoQuery, { owner, name: repo });
+
+      const repositoryId = repoResponse.repository.id;
+
+      // Get the base and head refs
+      const refsQuery = `
+        query($owner: String!, $name: String!, $baseName: String!, $headName: String!) {
+          repository(owner: $owner, name: $name) {
+            baseRef: ref(qualifiedName: $baseName) {
+              id
+              target {
+                oid
+              }
+            }
+            headRef: ref(qualifiedName: $headName) {
+              id
+              target {
+                oid
+              }
+            }
+          }
+        }
+      `;
+
+      // Ensure refs have proper format
+      const baseRefName = base.startsWith('refs/heads/') ? base : `refs/heads/${base}`;
+      const headRefName = head.startsWith('refs/heads/') ? head : `refs/heads/${head}`;
+
+      const refsResponse = await this._octokit.graphql<{
+        repository: {
+          baseRef: { id: string; target: { oid: string } };
+          headRef: { id: string; target: { oid: string } };
+        };
+      }>(refsQuery, { owner, name: repo, baseName: baseRefName, headName: headRefName });
+
+      if (!refsResponse.repository.baseRef) {
+        throw new Error(`Base branch '${base}' not found`);
+      }
+      if (!refsResponse.repository.headRef) {
+        throw new Error(`Head branch '${head}' not found`);
+      }
+
+      // Create the pull request
+      const mutation = `
+        mutation($repositoryId: ID!, $baseRefName: String!, $headRefName: String!, $title: String!, $body: String, $draft: Boolean!, $maintainerCanModify: Boolean!) {
+          createPullRequest(input: {
+            repositoryId: $repositoryId,
+            baseRefName: $baseRefName,
+            headRefName: $headRefName,
+            title: $title,
+            body: $body,
+            draft: $draft,
+            maintainerCanModify: $maintainerCanModify
+          }) {
+            pullRequest {
+              id
+              number
+              url
+              title
+              state
+              isDraft
+              mergeable
+              mergeStateStatus
+              baseRefName
+              headRefName
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        createPullRequest: {
+          pullRequest: {
+            id: string;
+            number: number;
+            url: string;
+            title: string;
+            state: string;
+            isDraft: boolean;
+            mergeable: string;
+            mergeStateStatus: string;
+            baseRefName: string;
+            headRefName: string;
+          };
+        };
+      }>(mutation, {
+        repositoryId,
+        baseRefName: base,
+        headRefName: head,
+        title,
+        body: body || "",
+        draft,
+        maintainerCanModify,
+      });
+
+      const pr = response.createPullRequest.pullRequest;
+      return {
+        id: pr.id,
+        number: pr.number,
+        url: pr.url,
+        mergeableState: pr.mergeStateStatus,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create pull request in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  async commentOnPullRequest(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    body: string
+  ): Promise<{ id: string; url: string }> {
+    try {
+      // Get the PR ID for GraphQL mutation
+      const prQuery = `
+        query($owner: String!, $name: String!, $number: Int!) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $number) {
+              id
+            }
+          }
+        }
+      `;
+
+      const prResponse = await this._octokit.graphql<{
+        repository: {
+          pullRequest: { id: string };
+        };
+      }>(prQuery, { owner, name: repo, number: prNumber });
+
+      if (!prResponse.repository.pullRequest) {
+        throw new Error(`Pull request #${prNumber} not found`);
+      }
+
+      const prId = prResponse.repository.pullRequest.id;
+
+      // Add comment to the pull request
+      const mutation = `
+        mutation($prId: ID!, $body: String!) {
+          addComment(input: {
+            subjectId: $prId,
+            body: $body
+          }) {
+            commentEdge {
+              node {
+                id
+                url
+                body
+                author {
+                  login
+                }
+                createdAt
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        addComment: {
+          commentEdge: {
+            node: {
+              id: string;
+              url: string;
+              body: string;
+              author: {
+                login: string;
+              };
+              createdAt: string;
+            };
+          };
+        };
+      }>(mutation, { prId, body });
+
+      return {
+        id: response.addComment.commentEdge.node.id,
+        url: response.addComment.commentEdge.node.url,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to comment on pull request #${prNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  async getPullRequestDetails(
+    owner: string,
+    repo: string,
+    prNumber: number
+  ): Promise<{
+    id: string;
+    number: number;
+    title: string;
+    body: string;
+    state: string;
+    isDraft: boolean;
+    author: { login: string; avatarUrl: string };
+    baseRefName: string;
+    headRefName: string;
+    mergeable: string;
+    mergeStateStatus: string;
+    url: string;
+    createdAt: string;
+    updatedAt: string;
+    reviewDecision?: string;
+    reviews: Array<{ author: string; state: string; submittedAt: string }>;
+    comments: { totalCount: number };
+  }> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!, $number: Int!) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $number) {
+              id
+              number
+              title
+              body
+              state
+              isDraft
+              author {
+                login
+                avatarUrl
+              }
+              baseRefName
+              headRefName
+              mergeable
+              mergeStateStatus
+              url
+              createdAt
+              updatedAt
+              reviewDecision
+              reviews(last: 10) {
+                nodes {
+                  author {
+                    login
+                  }
+                  state
+                  submittedAt
+                }
+              }
+              comments {
+                totalCount
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        repository: {
+          pullRequest: {
+            id: string;
+            number: number;
+            title: string;
+            body: string;
+            state: string;
+            isDraft: boolean;
+            author: {
+              login: string;
+              avatarUrl: string;
+            };
+            baseRefName: string;
+            headRefName: string;
+            mergeable: string;
+            mergeStateStatus: string;
+            url: string;
+            createdAt: string;
+            updatedAt: string;
+            reviewDecision?: string;
+            reviews: {
+              nodes: Array<{
+                author: {
+                  login: string;
+                };
+                state: string;
+                submittedAt: string;
+              }>;
+            };
+            comments: {
+              totalCount: number;
+            };
+          };
+        };
+      }>(query, { owner, name: repo, number: prNumber });
+
+      if (!response.repository.pullRequest) {
+        throw new Error(`Pull request #${prNumber} not found`);
+      }
+
+      const pr = response.repository.pullRequest;
+      return {
+        id: pr.id,
+        number: pr.number,
+        title: pr.title,
+        body: pr.body,
+        state: pr.state,
+        isDraft: pr.isDraft,
+        author: pr.author,
+        baseRefName: pr.baseRefName,
+        headRefName: pr.headRefName,
+        mergeable: pr.mergeable,
+        mergeStateStatus: pr.mergeStateStatus,
+        url: pr.url,
+        createdAt: pr.createdAt,
+        updatedAt: pr.updatedAt,
+        reviewDecision: pr.reviewDecision,
+        reviews: pr.reviews.nodes.map(review => ({
+          author: review.author.login,
+          state: review.state,
+          submittedAt: review.submittedAt,
+        })),
+        comments: pr.comments,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get details for pull request #${prNumber} in ${owner}/${repo}: ${error.message}`);
+    }
+  }
 }
