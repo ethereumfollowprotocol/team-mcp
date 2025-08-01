@@ -2569,7 +2569,7 @@ export class GitHubApiService {
       // Build tree entries for all changes
       const treeEntries = fileChanges.map(change => ({
         path: change.path,
-        mode: '100644', // Regular file
+        mode: '100644' as '100644', // Regular file (type assertion for Octokit)
         type: 'blob' as const,
         content: change.content,
       }));
