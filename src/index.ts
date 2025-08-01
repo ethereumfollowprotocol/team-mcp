@@ -1413,9 +1413,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                   status: projectItemId ? "added" : "failed to add",
                 }
               : null,
-            message: `Issue #${issue.number} created successfully${
-              addToProject && projectItemId ? " and added to project board" : ""
-            }`,
+            message: `Issue #${issue.number} created successfully${addToProject && projectItemId ? " and added to project board" : ""}`,
           };
 
           return {
@@ -1752,25 +1750,29 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
         try {
           const pr = await githubApi.createPullRequest(owner, repo, title, head, base, body, draft, maintainerCanModify);
-          
+
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  pull_request: {
-                    id: pr.id,
-                    number: pr.number,
-                    url: pr.url,
-                    title,
-                    head_branch: head,
-                    base_branch: base,
-                    is_draft: draft,
-                    mergeable_state: pr.mergeableState,
-                    repository: `${owner}/${repo}`,
+                text: JSON.stringify(
+                  {
+                    pull_request: {
+                      id: pr.id,
+                      number: pr.number,
+                      url: pr.url,
+                      title,
+                      head_branch: head,
+                      base_branch: base,
+                      is_draft: draft,
+                      mergeable_state: pr.mergeableState,
+                      repository: `${owner}/${repo}`,
+                    },
+                    message: `Pull request #${pr.number} created successfully`,
                   },
-                  message: `Pull request #${pr.number} created successfully`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -1802,22 +1804,26 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
         try {
           const comment = await githubApi.commentOnPullRequest(owner, repo, prNumber, body);
-          
+
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  comment: {
-                    id: comment.id,
-                    url: comment.url,
+                text: JSON.stringify(
+                  {
+                    comment: {
+                      id: comment.id,
+                      url: comment.url,
+                    },
+                    pull_request: {
+                      number: prNumber,
+                      repository: `${owner}/${repo}`,
+                    },
+                    message: `Comment added successfully to pull request #${prNumber}`,
                   },
-                  pull_request: {
-                    number: prNumber,
-                    repository: `${owner}/${repo}`,
-                  },
-                  message: `Comment added successfully to pull request #${prNumber}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -1848,34 +1854,38 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
         try {
           const pr = await githubApi.getPullRequestDetails(owner, repo, prNumber);
-          
+
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  pull_request: {
-                    id: pr.id,
-                    number: pr.number,
-                    title: pr.title,
-                    body: pr.body,
-                    state: pr.state,
-                    is_draft: pr.isDraft,
-                    author: pr.author,
-                    base_branch: pr.baseRefName,
-                    head_branch: pr.headRefName,
-                    mergeable: pr.mergeable,
-                    merge_state: pr.mergeStateStatus,
-                    review_decision: pr.reviewDecision,
-                    reviews: pr.reviews,
-                    comment_count: pr.comments.totalCount,
-                    created_at: pr.createdAt,
-                    updated_at: pr.updatedAt,
-                    url: pr.url,
-                    repository: `${owner}/${repo}`,
+                text: JSON.stringify(
+                  {
+                    pull_request: {
+                      id: pr.id,
+                      number: pr.number,
+                      title: pr.title,
+                      body: pr.body,
+                      state: pr.state,
+                      is_draft: pr.isDraft,
+                      author: pr.author,
+                      base_branch: pr.baseRefName,
+                      head_branch: pr.headRefName,
+                      mergeable: pr.mergeable,
+                      merge_state: pr.mergeStateStatus,
+                      review_decision: pr.reviewDecision,
+                      reviews: pr.reviews,
+                      comment_count: pr.comments.totalCount,
+                      created_at: pr.createdAt,
+                      updated_at: pr.updatedAt,
+                      url: pr.url,
+                      repository: `${owner}/${repo}`,
+                    },
+                    message: `Details retrieved for pull request #${prNumber}`,
                   },
-                  message: `Details retrieved for pull request #${prNumber}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -1885,6 +1895,321 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               {
                 type: "text",
                 text: `Error getting pull request details: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Git Repository Management Tools
+
+    // Get repository file contents
+    this.server.tool(
+      "getRepositoryFile",
+      "Read the contents of a specific file from a GitHub repository",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        path: z.string().describe("File path within the repository"),
+        branch: z.string().optional().describe("Branch name to read from (defaults to default branch)"),
+      },
+      async ({ owner, repo, path, branch }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const file = await githubApi.getRepositoryFile(owner, repo, path, branch);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  file: {
+                    path: file.path,
+                    content: file.content,
+                    encoding: file.encoding,
+                    size: file.size,
+                    sha: file.sha,
+                    type: file.type,
+                    download_url: file.downloadUrl,
+                    repository: `${owner}/${repo}`,
+                    branch: branch || "default",
+                  },
+                  message: `File '${path}' retrieved successfully from ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error reading repository file: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Get repository directory tree
+    this.server.tool(
+      "getRepositoryTree",
+      "Browse the file and directory structure of a GitHub repository",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        path: z.string().optional().describe("Directory path to browse (defaults to root)"),
+        branch: z.string().optional().describe("Branch name to browse (defaults to default branch)"),
+        recursive: z.boolean().optional().default(false).describe("Include subdirectories recursively"),
+      },
+      async ({ owner, repo, path, branch, recursive }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const tree = await githubApi.getRepositoryTree(owner, repo, path || '', branch, recursive);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  repository: `${owner}/${repo}`,
+                  branch: branch || "default",
+                  path: tree.path,
+                  sha: tree.sha,
+                  total_items: tree.tree.length,
+                  tree: tree.tree.map(item => ({
+                    path: item.path,
+                    type: item.type,
+                    size: item.size,
+                    mode: item.mode,
+                    sha: item.sha.substring(0, 7),
+                    url: item.url,
+                  })),
+                  message: `Directory tree retrieved for '${tree.path || 'root'}' in ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error reading repository tree: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // List all branches in repository
+    this.server.tool(
+      "listRepositoryBranches",
+      "List all branches in a GitHub repository with their commit information",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        includeProtected: z.boolean().optional().default(false).describe("Include branch protection status"),
+      },
+      async ({ owner, repo, includeProtected }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const branches = await githubApi.listBranches(owner, repo, includeProtected);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  repository: `${owner}/${repo}`,
+                  total_branches: branches.length,
+                  branches: branches.map(branch => ({
+                    name: branch.name,
+                    sha: branch.sha,
+                    protected: branch.protected,
+                    url: branch.url,
+                    last_commit: {
+                      sha: branch.lastCommit.sha,
+                      message: branch.lastCommit.message,
+                      author: branch.lastCommit.author,
+                      date: branch.lastCommit.date,
+                    },
+                  })),
+                  message: `Found ${branches.length} branches in ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error listing repository branches: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Get detailed information about a specific branch
+    this.server.tool(
+      "getBranchInfo",
+      "Get detailed information about a specific branch including commit status and protection",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        branch: z.string().describe("Branch name to get information for"),
+      },
+      async ({ owner, repo, branch }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const branchInfo = await githubApi.getBranchInfo(owner, repo, branch);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  branch: {
+                    name: branchInfo.name,
+                    sha: branchInfo.sha,
+                    protected: branchInfo.protected,
+                    url: branchInfo.url,
+                    ahead: branchInfo.ahead,
+                    behind: branchInfo.behind,
+                    base_branch: branchInfo.baseBranch,
+                    last_commit: branchInfo.lastCommit,
+                    repository: `${owner}/${repo}`,
+                  },
+                  message: `Branch information retrieved for '${branch}' in ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error getting branch information: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Create a new branch
+    this.server.tool(
+      "createBranch",
+      "Create a new branch in a GitHub repository from a base branch",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        branchName: z.string().describe("Name for the new branch (e.g., 'feature/auth-improvements')"),
+        baseBranch: z.string().optional().default("main").describe("Base branch to create from (defaults to 'main')"),
+        description: z.string().optional().describe("Optional description for the branch"),
+      },
+      async ({ owner, repo, branchName, baseBranch, description }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const branch = await githubApi.createBranch(owner, repo, branchName, baseBranch, description);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  branch: {
+                    name: branch.name,
+                    sha: branch.sha,
+                    url: branch.url,
+                    ref: branch.ref,
+                    base_branch: branch.baseBranch,
+                    repository: `${owner}/${repo}`,
+                    description: description || null,
+                  },
+                  message: `Branch '${branchName}' created successfully from '${baseBranch}' in ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error creating branch: ${error.message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Commit code changes to a branch
+    this.server.tool(
+      "commitChanges",
+      "Commit multiple file changes to a GitHub repository branch",
+      {
+        owner: z.string().describe("Repository owner (username or organization)"),
+        repo: z.string().describe("Repository name"),
+        branch: z.string().describe("Branch name to commit to (must not be a protected branch)"),
+        message: z.string().describe("Commit message describing the changes"),
+        changes: z.array(z.object({
+          path: z.string().describe("File path within the repository"),
+          content: z.string().describe("New file content"),
+          operation: z.enum(['create', 'update']).describe("Operation type: 'create' for new files, 'update' for existing files"),
+          encoding: z.string().optional().default('utf-8').describe("File encoding (defaults to 'utf-8')"),
+        })).describe("Array of file changes to commit"),
+      },
+      async ({ owner, repo, branch, message, changes }) => {
+        const githubApi = new GitHubApiService(this.props.accessToken);
+
+        try {
+          const result = await githubApi.commitChanges(owner, repo, branch, message, changes);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  commit: {
+                    sha: result.commit.sha,
+                    url: result.commit.url,
+                    message: result.commit.message,
+                    author: result.commit.author,
+                    branch: result.branch,
+                    repository: `${owner}/${repo}`,
+                  },
+                  changes: {
+                    files_changed: result.filesChanged,
+                    operations: changes.map(c => ({
+                      path: c.path,
+                      operation: c.operation,
+                    })),
+                  },
+                  message: `Successfully committed ${result.filesChanged} file changes to branch '${branch}' in ${owner}/${repo}`,
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error committing changes: ${error.message}`,
               },
             ],
           };
@@ -1991,352 +2316,347 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
     );
 
     // Get available assignees for the project
-    this.server.tool(
-      "getProjectAssignableUsers",
-      "Get a list of users who can be assigned to project board items",
-      {},
-      async () => {
-        const projectId = PROJECT_BOARD_ID;
+    this.server.tool("getProjectAssignableUsers", "Get a list of users who can be assigned to project board items", {}, async () => {
+      const projectId = PROJECT_BOARD_ID;
 
-        try {
-          const users = await githubApi.getProjectAssignableUsers(projectId);
+      try {
+        const users = await githubApi.getProjectAssignableUsers(projectId);
 
-          const result = {
-            projectId,
-            total_assignable_users: users.length,
-            users: users.map(user => ({
-              login: user.login,
-              name: user.name,
-              avatar_url: user.avatarUrl,
-            })),
-            message: `Found ${users.length} assignable users for the project`,
-          };
+        const result = {
+          projectId,
+          total_assignable_users: users.length,
+          users: users.map((user) => ({
+            login: user.login,
+            name: user.name,
+            avatar_url: user.avatarUrl,
+          })),
+          message: `Found ${users.length} assignable users for the project`,
+        };
 
-          return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-          };
-        } catch (error: any) {
-          return {
-            content: [{ text: `Error getting assignable users: ${error.message}`, type: "text" }],
-          };
-        }
-      },
-    );
+        return {
+          content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+        };
+      } catch (error: any) {
+        return {
+          content: [{ text: `Error getting assignable users: ${error.message}`, type: "text" }],
+        };
+      }
+    });
 
     // ChatGPT Compatibility Tools (Required for ChatGPT MCP Integration)
 
     // ChatGPT-required search tool
-    this.server.tool(
-      "search",
-      "Search across GitHub repositories, issues, PRs, and project items (ChatGPT-compatible)",
-      {
-        query: z.string().describe("Search query to find relevant records across GitHub"),
-      },
-      async ({ query }) => {
-        try {
-          const searchResults: Array<{
-            id: string;
-            type: string;
-            title: string;
-            description: string;
-            url: string;
-          }> = [];
+    // this.server.tool(
+    //   "search",
+    //   "Search across GitHub repositories, issues, PRs, and project items (ChatGPT-compatible)",
+    //   {
+    //     query: z.string().describe("Search query to find relevant records across GitHub"),
+    //   },
+    //   async ({ query }) => {
+    //     try {
+    //       const searchResults: Array<{
+    //         id: string;
+    //         type: string;
+    //         title: string;
+    //         description: string;
+    //         url: string;
+    //       }> = [];
 
-          // Determine organization from context or use default
-          const organization = "ethereumfollowprotocol"; // Could be made configurable
+    //       // Determine organization from context or use default
+    //       const organization = "ethereumfollowprotocol"; // Could be made configurable
 
-          // Search repositories if query suggests repository search
-          if (query.toLowerCase().includes("repo") || query.toLowerCase().includes("repository") || query.length < 20) {
-            try {
-              const repos = await githubApi.getOrganizationRepositories(organization, true);
-              const filtered = repos.filter(
-                (repo) =>
-                  repo.name.toLowerCase().includes(query.toLowerCase()) ||
-                  (repo.description && repo.description.toLowerCase().includes(query.toLowerCase())),
-              );
+    //       // Search repositories if query suggests repository search
+    //       if (query.toLowerCase().includes("repo") || query.toLowerCase().includes("repository") || query.length < 20) {
+    //         try {
+    //           const repos = await githubApi.getOrganizationRepositories(organization, true);
+    //           const filtered = repos.filter(
+    //             (repo) =>
+    //               repo.name.toLowerCase().includes(query.toLowerCase()) ||
+    //               (repo.description && repo.description.toLowerCase().includes(query.toLowerCase())),
+    //           );
 
-              filtered.slice(0, 10).forEach((repo) => {
-                searchResults.push({
-                  id: `repo:${repo.full_name}`,
-                  type: "repository",
-                  title: repo.full_name,
-                  description: repo.description || "No description available",
-                  url: repo.html_url,
-                });
-              });
-            } catch (repoError) {
-              console.error("Repository search failed:", repoError);
-            }
-          }
+    //           filtered.slice(0, 10).forEach((repo) => {
+    //             searchResults.push({
+    //               id: `repo:${repo.full_name}`,
+    //               type: "repository",
+    //               title: repo.full_name,
+    //               description: repo.description || "No description available",
+    //               url: repo.html_url,
+    //             });
+    //           });
+    //         } catch (repoError) {
+    //           console.error("Repository search failed:", repoError);
+    //         }
+    //       }
 
-          // Search issues and PRs
-          try {
-            const issuesAndPRs = await githubApi.searchIssuesAndPRs(organization, query, "all");
+    //       // Search issues and PRs
+    //       try {
+    //         const issuesAndPRs = await githubApi.searchIssuesAndPRs(organization, query, "all");
 
-            // Add issues to results
-            issuesAndPRs.issues.slice(0, 8).forEach((issue) => {
-              const repoPath = issue.html_url.split("/").slice(-4, -2).join("/");
-              searchResults.push({
-                id: `issue:${repoPath}:${issue.number}`,
-                type: "issue",
-                title: `#${issue.number}: ${issue.title}`,
-                description: `Issue by ${issue.user.login} in ${repoPath}`,
-                url: issue.html_url,
-              });
-            });
+    //         // Add issues to results
+    //         issuesAndPRs.issues.slice(0, 8).forEach((issue) => {
+    //           const repoPath = issue.html_url.split("/").slice(-4, -2).join("/");
+    //           searchResults.push({
+    //             id: `issue:${repoPath}:${issue.number}`,
+    //             type: "issue",
+    //             title: `#${issue.number}: ${issue.title}`,
+    //             description: `Issue by ${issue.user.login} in ${repoPath}`,
+    //             url: issue.html_url,
+    //           });
+    //         });
 
-            // Add pull requests to results
-            issuesAndPRs.pull_requests.slice(0, 7).forEach((pr) => {
-              const repoPath = pr.html_url.split("/").slice(-4, -2).join("/");
-              searchResults.push({
-                id: `pr:${repoPath}:${pr.number}`,
-                type: "pull_request",
-                title: `#${pr.number}: ${pr.title}`,
-                description: `PR by ${pr.user.login} in ${repoPath}`,
-                url: pr.html_url,
-              });
-            });
-          } catch (searchError) {
-            console.error("Issues/PRs search failed:", searchError);
-          }
+    //         // Add pull requests to results
+    //         issuesAndPRs.pull_requests.slice(0, 7).forEach((pr) => {
+    //           const repoPath = pr.html_url.split("/").slice(-4, -2).join("/");
+    //           searchResults.push({
+    //             id: `pr:${repoPath}:${pr.number}`,
+    //             type: "pull_request",
+    //             title: `#${pr.number}: ${pr.title}`,
+    //             description: `PR by ${pr.user.login} in ${repoPath}`,
+    //             url: pr.html_url,
+    //           });
+    //         });
+    //       } catch (searchError) {
+    //         console.error("Issues/PRs search failed:", searchError);
+    //       }
 
-          // Search project board items if query suggests project management
-          if (query.toLowerCase().includes("project") || query.toLowerCase().includes("task") || query.toLowerCase().includes("board")) {
-            try {
-              const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
-              const filteredItems = projectDetails.items.filter((item) =>
-                item.content.title.toLowerCase().includes(query.toLowerCase()),
-              );
+    //       // Search project board items if query suggests project management
+    //       if (query.toLowerCase().includes("project") || query.toLowerCase().includes("task") || query.toLowerCase().includes("board")) {
+    //         try {
+    //           const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
+    //           const filteredItems = projectDetails.items.filter((item) =>
+    //             item.content.title.toLowerCase().includes(query.toLowerCase()),
+    //           );
 
-              filteredItems.slice(0, 5).forEach((item) => {
-                searchResults.push({
-                  id: `project-item:${item.id}`,
-                  type: `project_${item.type.toLowerCase()}`,
-                  title: item.content.title,
-                  description: `${item.type} in project board${item.content.assignees?.length ? ` (assigned to ${item.content.assignees.map(a => a.login).join(", ")})` : ""}`,
-                  url: item.content.url || `https://github.com/orgs/${organization}/projects`,
-                });
-              });
-            } catch (projectError) {
-              console.error("Project search failed:", projectError);
-            }
-          }
+    //           filteredItems.slice(0, 5).forEach((item) => {
+    //             searchResults.push({
+    //               id: `project-item:${item.id}`,
+    //               type: `project_${item.type.toLowerCase()}`,
+    //               title: item.content.title,
+    //               description: `${item.type} in project board${item.content.assignees?.length ? ` (assigned to ${item.content.assignees.map(a => a.login).join(", ")})` : ""}`,
+    //               url: item.content.url || `https://github.com/orgs/${organization}/projects`,
+    //             });
+    //           });
+    //         } catch (projectError) {
+    //           console.error("Project search failed:", projectError);
+    //         }
+    //       }
 
-          const result = {
-            query,
-            total_results: searchResults.length,
-            organization,
-            results: searchResults.slice(0, 25), // Limit total results
-            message: `Found ${searchResults.length} results for query "${query}"`,
-          };
+    //       const result = {
+    //         query,
+    //         total_results: searchResults.length,
+    //         organization,
+    //         results: searchResults.slice(0, 25), // Limit total results
+    //         message: `Found ${searchResults.length} results for query "${query}"`,
+    //       };
 
-          return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-          };
-        } catch (error: any) {
-          return {
-            content: [{ text: `Error searching: ${error.message}`, type: "text" }],
-          };
-        }
-      },
-    );
+    //       return {
+    //         content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+    //       };
+    //     } catch (error: any) {
+    //       return {
+    //         content: [{ text: `Error searching: ${error.message}`, type: "text" }],
+    //       };
+    //     }
+    //   },
+    // );
 
-    // ChatGPT-required fetch tool
-    this.server.tool(
-      "fetch",
-      "Fetch detailed information for a specific record by ID (ChatGPT-compatible)",
-      {
-        id: z.string().describe("The ID of the record to fetch (format: type:identifier)"),
-      },
-      async ({ id }) => {
-        try {
-          const [type, ...identifierParts] = id.split(":");
-          const identifier = identifierParts.join(":");
+    // // ChatGPT-required fetch tool
+    // this.server.tool(
+    //   "fetch",
+    //   "Fetch detailed information for a specific record by ID (ChatGPT-compatible)",
+    //   {
+    //     id: z.string().describe("The ID of the record to fetch (format: type:identifier)"),
+    //   },
+    //   async ({ id }) => {
+    //     try {
+    //       const [type, ...identifierParts] = id.split(":");
+    //       const identifier = identifierParts.join(":");
 
-          let result: any;
+    //       let result: any;
 
-          switch (type) {
-            case "repo":
-              const [owner, repo] = identifier.split("/");
-              if (!owner || !repo) {
-                throw new Error("Invalid repository identifier format. Expected: owner/repo");
-              }
+    //       switch (type) {
+    //         case "repo":
+    //           const [owner, repo] = identifier.split("/");
+    //           if (!owner || !repo) {
+    //             throw new Error("Invalid repository identifier format. Expected: owner/repo");
+    //           }
 
-              // Get comprehensive repository details using existing API methods
-              const sinceDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-              
-              // Get repository info using Octokit directly
-              const octokit = new Octokit({ auth: this.props.accessToken });
-              const repoInfo = await octokit.rest.repos.get({ owner, repo });
+    //           // Get comprehensive repository details using existing API methods
+    //           const sinceDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-              // Get activity data in parallel
-              const [commits, issues, prs, contributors] = await Promise.all([
-                githubApi.getRecentCommits(owner, repo, sinceDate),
-                githubApi.getRepositoryIssues(owner, repo, "all", sinceDate),
-                githubApi.getRepositoryPullRequests(owner, repo, "all"),
-                githubApi.getContributors(owner, repo),
-              ]);
+    //           // Get repository info using Octokit directly
+    //           const octokit = new Octokit({ auth: this.props.accessToken });
+    //           const repoInfo = await octokit.rest.repos.get({ owner, repo });
 
-              // Filter issues vs PRs
-              const actualIssues = issues.filter((issue) => !issue.pull_request);
-              const recentPRs = prs.filter((pr) => new Date(pr.updated_at) > new Date(sinceDate));
+    //           // Get activity data in parallel
+    //           const [commits, issues, prs, contributors] = await Promise.all([
+    //             githubApi.getRecentCommits(owner, repo, sinceDate),
+    //             githubApi.getRepositoryIssues(owner, repo, "all", sinceDate),
+    //             githubApi.getRepositoryPullRequests(owner, repo, "all"),
+    //             githubApi.getContributors(owner, repo),
+    //           ]);
 
-              const repoDetails = {
-                repository: {
-                  name: repoInfo.data.name,
-                  full_name: repoInfo.data.full_name,
-                  description: repoInfo.data.description,
-                  language: repoInfo.data.language,
-                  stars: repoInfo.data.stargazers_count,
-                  forks: repoInfo.data.forks_count,
-                  open_issues: repoInfo.data.open_issues_count,
-                  private: repoInfo.data.private,
-                  created_at: repoInfo.data.created_at,
-                  updated_at: repoInfo.data.updated_at,
-                  pushed_at: repoInfo.data.pushed_at,
-                  default_branch: repoInfo.data.default_branch,
-                  url: repoInfo.data.html_url,
-                },
-                recent_commits: commits.slice(0, 10).map((commit) => ({
-                  sha: commit.sha.substring(0, 7),
-                  author: commit.commit.author.name,
-                  date: commit.commit.author.date,
-                  message: commit.commit.message.split("\n")[0],
-                  url: commit.html_url,
-                })),
-                recent_issues: actualIssues.slice(0, 10).map((issue) => ({
-                  number: issue.number,
-                  title: issue.title,
-                  state: issue.state,
-                  author: issue.user.login,
-                  created_at: issue.created_at,
-                  labels: issue.labels.map((l) => l.name),
-                  url: issue.html_url,
-                })),
-                recent_pull_requests: recentPRs.slice(0, 10).map((pr) => ({
-                  number: pr.number,
-                  title: pr.title,
-                  state: pr.state,
-                  author: pr.user.login,
-                  created_at: pr.created_at,
-                  merged: pr.merged,
-                  draft: pr.draft,
-                  head_branch: pr.head.ref,
-                  base_branch: pr.base.ref,
-                  url: pr.html_url,
-                })),
-                contributors: contributors.slice(0, 10).map((contributor) => ({
-                  login: contributor.login,
-                  contributions: contributor.contributions,
-                  avatar_url: contributor.avatar_url,
-                })),
-                statistics: {
-                  recent_commits: commits.length,
-                  recent_issues: actualIssues.length,
-                  recent_prs: recentPRs.length,
-                  total_contributors: contributors.length,
-                },
-              };
-              
-              result = {
-                id,
-                type: "repository",
-                data: repoDetails,
-                metadata: {
-                  fetched_at: new Date().toISOString(),
-                  source: "github_api",
-                },
-              };
-              break;
+    //           // Filter issues vs PRs
+    //           const actualIssues = issues.filter((issue) => !issue.pull_request);
+    //           const recentPRs = prs.filter((pr) => new Date(pr.updated_at) > new Date(sinceDate));
 
-            case "issue":
-              const [issueOwner, issueRepo, issueNumberStr] = identifier.split(":");
-              const issueNumber = parseInt(issueNumberStr);
+    //           const repoDetails = {
+    //             repository: {
+    //               name: repoInfo.data.name,
+    //               full_name: repoInfo.data.full_name,
+    //               description: repoInfo.data.description,
+    //               language: repoInfo.data.language,
+    //               stars: repoInfo.data.stargazers_count,
+    //               forks: repoInfo.data.forks_count,
+    //               open_issues: repoInfo.data.open_issues_count,
+    //               private: repoInfo.data.private,
+    //               created_at: repoInfo.data.created_at,
+    //               updated_at: repoInfo.data.updated_at,
+    //               pushed_at: repoInfo.data.pushed_at,
+    //               default_branch: repoInfo.data.default_branch,
+    //               url: repoInfo.data.html_url,
+    //             },
+    //             recent_commits: commits.slice(0, 10).map((commit) => ({
+    //               sha: commit.sha.substring(0, 7),
+    //               author: commit.commit.author.name,
+    //               date: commit.commit.author.date,
+    //               message: commit.commit.message.split("\n")[0],
+    //               url: commit.html_url,
+    //             })),
+    //             recent_issues: actualIssues.slice(0, 10).map((issue) => ({
+    //               number: issue.number,
+    //               title: issue.title,
+    //               state: issue.state,
+    //               author: issue.user.login,
+    //               created_at: issue.created_at,
+    //               labels: issue.labels.map((l) => l.name),
+    //               url: issue.html_url,
+    //             })),
+    //             recent_pull_requests: recentPRs.slice(0, 10).map((pr) => ({
+    //               number: pr.number,
+    //               title: pr.title,
+    //               state: pr.state,
+    //               author: pr.user.login,
+    //               created_at: pr.created_at,
+    //               merged: pr.merged,
+    //               draft: pr.draft,
+    //               head_branch: pr.head.ref,
+    //               base_branch: pr.base.ref,
+    //               url: pr.html_url,
+    //             })),
+    //             contributors: contributors.slice(0, 10).map((contributor) => ({
+    //               login: contributor.login,
+    //               contributions: contributor.contributions,
+    //               avatar_url: contributor.avatar_url,
+    //             })),
+    //             statistics: {
+    //               recent_commits: commits.length,
+    //               recent_issues: actualIssues.length,
+    //               recent_prs: recentPRs.length,
+    //               total_contributors: contributors.length,
+    //             },
+    //           };
 
-              if (!issueOwner || !issueRepo || !issueNumber) {
-                throw new Error("Invalid issue identifier format. Expected: owner:repo:number");
-              }
+    //           result = {
+    //             id,
+    //             type: "repository",
+    //             data: repoDetails,
+    //             metadata: {
+    //               fetched_at: new Date().toISOString(),
+    //               source: "github_api",
+    //             },
+    //           };
+    //           break;
 
-              const issue = await githubApi.getIssueByNumber(issueOwner, issueRepo, issueNumber);
-              result = {
-                id,
-                type: "issue",
-                data: {
-                  ...issue,
-                  repository: `${issueOwner}/${issueRepo}`,
-                },
-                metadata: {
-                  fetched_at: new Date().toISOString(),
-                  source: "github_api",
-                },
-              };
-              break;
+    //         case "issue":
+    //           const [issueOwner, issueRepo, issueNumberStr] = identifier.split(":");
+    //           const issueNumber = parseInt(issueNumberStr);
 
-            case "pr":
-              const [prOwner, prRepo, prNumberStr] = identifier.split(":");
-              const prNumber = parseInt(prNumberStr);
+    //           if (!issueOwner || !issueRepo || !issueNumber) {
+    //             throw new Error("Invalid issue identifier format. Expected: owner:repo:number");
+    //           }
 
-              if (!prOwner || !prRepo || !prNumber) {
-                throw new Error("Invalid PR identifier format. Expected: owner:repo:number");
-              }
+    //           const issue = await githubApi.getIssueByNumber(issueOwner, issueRepo, issueNumber);
+    //           result = {
+    //             id,
+    //             type: "issue",
+    //             data: {
+    //               ...issue,
+    //               repository: `${issueOwner}/${issueRepo}`,
+    //             },
+    //             metadata: {
+    //               fetched_at: new Date().toISOString(),
+    //               source: "github_api",
+    //             },
+    //           };
+    //           break;
 
-              // Reuse issue fetcher as PRs are issues in GitHub's API
-              const pr = await githubApi.getIssueByNumber(prOwner, prRepo, prNumber);
-              result = {
-                id,
-                type: "pull_request",
-                data: {
-                  ...pr,
-                  repository: `${prOwner}/${prRepo}`,
-                },
-                metadata: {
-                  fetched_at: new Date().toISOString(),
-                  source: "github_api",
-                },
-              };
-              break;
+    //         case "pr":
+    //           const [prOwner, prRepo, prNumberStr] = identifier.split(":");
+    //           const prNumber = parseInt(prNumberStr);
 
-            case "project-item":
-              const itemId = identifier;
-              const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
-              const item = projectDetails.items.find((i) => i.id === itemId);
+    //           if (!prOwner || !prRepo || !prNumber) {
+    //             throw new Error("Invalid PR identifier format. Expected: owner:repo:number");
+    //           }
 
-              if (!item) {
-                throw new Error(`Project item with ID '${itemId}' not found`);
-              }
+    //           // Reuse issue fetcher as PRs are issues in GitHub's API
+    //           const pr = await githubApi.getIssueByNumber(prOwner, prRepo, prNumber);
+    //           result = {
+    //             id,
+    //             type: "pull_request",
+    //             data: {
+    //               ...pr,
+    //               repository: `${prOwner}/${prRepo}`,
+    //             },
+    //             metadata: {
+    //               fetched_at: new Date().toISOString(),
+    //               source: "github_api",
+    //             },
+    //           };
+    //           break;
 
-              result = {
-                id,
-                type: "project_item",
-                data: {
-                  ...item,
-                  project: {
-                    id: PROJECT_BOARD_ID,
-                    title: projectDetails.project.title,
-                    url: projectDetails.project.url,
-                  },
-                },
-                metadata: {
-                  fetched_at: new Date().toISOString(),
-                  source: "github_projects_v2",
-                },
-              };
-              break;
+    //         case "project-item":
+    //           const itemId = identifier;
+    //           const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
+    //           const item = projectDetails.items.find((i) => i.id === itemId);
 
-            default:
-              throw new Error(`Unknown record type: ${type}. Supported types: repo, issue, pr, project-item`);
-          }
+    //           if (!item) {
+    //             throw new Error(`Project item with ID '${itemId}' not found`);
+    //           }
 
-          return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-          };
-        } catch (error: any) {
-          return {
-            content: [{ text: `Error fetching record: ${error.message}`, type: "text" }],
-          };
-        }
-      },
-    );
+    //           result = {
+    //             id,
+    //             type: "project_item",
+    //             data: {
+    //               ...item,
+    //               project: {
+    //                 id: PROJECT_BOARD_ID,
+    //                 title: projectDetails.project.title,
+    //                 url: projectDetails.project.url,
+    //               },
+    //             },
+    //             metadata: {
+    //               fetched_at: new Date().toISOString(),
+    //               source: "github_projects_v2",
+    //             },
+    //           };
+    //           break;
+
+    //         default:
+    //           throw new Error(`Unknown record type: ${type}. Supported types: repo, issue, pr, project-item`);
+    //       }
+
+    //       return {
+    //         content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+    //       };
+    //     } catch (error: any) {
+    //       return {
+    //         content: [{ text: `Error fetching record: ${error.message}`, type: "text" }],
+    //       };
+    //     }
+    //   },
+    // );
   }
 }
 

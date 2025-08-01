@@ -1962,4 +1962,655 @@ export class GitHubApiService {
       throw new Error(`Failed to get details for pull request #${prNumber} in ${owner}/${repo}: ${error.message}`);
     }
   }
+
+  // Git Repository Management Methods
+  async getRepositoryFile(
+    owner: string,
+    repo: string,
+    path: string,
+    branch?: string
+  ): Promise<{
+    content: string;
+    encoding: string;
+    sha: string;
+    size: number;
+    path: string;
+    type: string;
+    downloadUrl?: string;
+  }> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!, $expression: String!) {
+          repository(owner: $owner, name: $name) {
+            object(expression: $expression) {
+              ... on Blob {
+                text
+                byteSize
+                oid
+              }
+            }
+            defaultBranchRef {
+              name
+            }
+          }
+        }
+      `;
+
+      // Use provided branch or default branch
+      const targetBranch = branch || 'HEAD';
+      const expression = `${targetBranch}:${path}`;
+
+      const response = await this._octokit.graphql<{
+        repository: {
+          object: {
+            text: string;
+            byteSize: number;
+            oid: string;
+          } | null;
+          defaultBranchRef: {
+            name: string;
+          } | null;
+        };
+      }>(query, { owner, name: repo, expression });
+
+      if (!response.repository.object) {
+        throw new Error(`File not found: ${path} on branch ${targetBranch}`);
+      }
+
+      const file = response.repository.object;
+      return {
+        content: file.text,
+        encoding: 'utf-8',
+        sha: file.oid,
+        size: file.byteSize,
+        path,
+        type: 'file',
+        downloadUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${targetBranch}/${path}`,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get file ${path} from ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  async getRepositoryTree(
+    owner: string,
+    repo: string,
+    path: string = '',
+    branch?: string,
+    recursive: boolean = false
+  ): Promise<{
+    sha: string;
+    path: string;
+    tree: Array<{
+      path: string;
+      mode: string;
+      type: 'blob' | 'tree';
+      sha: string;
+      size?: number;
+      url: string;
+    }>;
+  }> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!, $expression: String!) {
+          repository(owner: $owner, name: $name) {
+            object(expression: $expression) {
+              ... on Tree {
+                oid
+                entries {
+                  name
+                  path
+                  mode
+                  type
+                  oid
+                  object {
+                    ... on Blob {
+                      byteSize
+                    }
+                  }
+                }
+              }
+            }
+            defaultBranchRef {
+              name
+            }
+          }
+        }
+      `;
+
+      // Use provided branch or default branch  
+      const targetBranch = branch || 'HEAD';
+      const expression = path ? `${targetBranch}:${path}` : `${targetBranch}:`;
+
+      const response = await this._octokit.graphql<{
+        repository: {
+          object: {
+            oid: string;
+            entries: Array<{
+              name: string;
+              path: string;
+              mode: number;
+              type: 'blob' | 'tree';
+              oid: string;
+              object?: {
+                byteSize?: number;
+              };
+            }>;
+          } | null;
+          defaultBranchRef: {
+            name: string;
+          } | null;
+        };
+      }>(query, { owner, name: repo, expression });
+
+      if (!response.repository.object) {
+        throw new Error(`Path not found: ${path || 'root'} on branch ${targetBranch}`);
+      }
+
+      const tree = response.repository.object;
+      
+      return {
+        sha: tree.oid,
+        path: path || '',
+        tree: tree.entries.map(entry => ({
+          path: entry.path,
+          mode: entry.mode.toString(),
+          type: entry.type,
+          sha: entry.oid,
+          size: entry.object?.byteSize,
+          url: `https://github.com/${owner}/${repo}/${entry.type === 'blob' ? 'blob' : 'tree'}/${targetBranch}/${entry.path}`,
+        })),
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get repository tree for ${path || 'root'} from ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  async listBranches(
+    owner: string,
+    repo: string,
+    includeProtected: boolean = false
+  ): Promise<Array<{
+    name: string;
+    sha: string;
+    protected: boolean;
+    url: string;
+    lastCommit: {
+      sha: string;
+      message: string;
+      author: string;
+      date: string;
+    };
+  }>> {
+    try {
+      const query = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            refs(refPrefix: "refs/heads/", first: 100) {
+              nodes {
+                name
+                target {
+                  ... on Commit {
+                    oid
+                    message
+                    author {
+                      name
+                      date
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await this._octokit.graphql<{
+        repository: {
+          refs: {
+            nodes: Array<{
+              name: string;
+              target: {
+                oid: string;
+                message: string;
+                author: {
+                  name: string;
+                  date: string;
+                };
+              };
+            }>;
+          };
+        };
+      }>(query, { owner, name: repo });
+
+      const branches = response.repository.refs.nodes;
+      
+      // Get branch protection info if requested
+      let protectionInfo: Record<string, boolean> = {};
+      if (includeProtected) {
+        try {
+          // Use REST API to get branch protection info (not available in GraphQL for all repos)
+          const protectedBranches = await this._octokit.rest.repos.listBranches({
+            owner,
+            repo,
+            protected: true,
+          });
+          
+          protectionInfo = Object.fromEntries(
+            protectedBranches.data.map(branch => [branch.name, true])
+          );
+        } catch (error) {
+          // Branch protection info not available, continue without it
+          console.warn('Could not fetch branch protection info:', error);
+        }
+      }
+
+      return branches.map(branch => ({
+        name: branch.name,
+        sha: branch.target.oid,
+        protected: protectionInfo[branch.name] || false,
+        url: `https://github.com/${owner}/${repo}/tree/${branch.name}`,
+        lastCommit: {
+          sha: branch.target.oid.substring(0, 7),
+          message: branch.target.message.split('\n')[0],
+          author: branch.target.author.name,
+          date: branch.target.author.date,
+        },
+      }));
+    } catch (error: any) {
+      throw new Error(`Failed to list branches for ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  async getBranchInfo(
+    owner: string,
+    repo: string,
+    branch: string
+  ): Promise<{
+    name: string;
+    sha: string;
+    protected: boolean;
+    url: string;
+    ahead: number;
+    behind: number;
+    lastCommit: {
+      sha: string;
+      message: string;
+      author: string;
+      date: string;
+      url: string;
+    };
+    baseBranch?: string;
+  }> {
+    try {
+      // Get branch info
+      const query = `
+        query($owner: String!, $name: String!, $branch: String!) {
+          repository(owner: $owner, name: $name) {
+            ref(qualifiedName: $branch) {
+              name
+              target {
+                ... on Commit {
+                  oid
+                  message
+                  author {
+                    name
+                    date
+                  }
+                  url
+                }
+              }
+            }
+            defaultBranchRef {
+              name
+              target {
+                oid
+              }
+            }
+          }
+        }
+      `;
+
+      const branchRef = branch.startsWith('refs/heads/') ? branch : `refs/heads/${branch}`;
+      
+      const response = await this._octokit.graphql<{
+        repository: {
+          ref: {
+            name: string;
+            target: {
+              oid: string;
+              message: string;
+              author: {
+                name: string;
+                date: string;
+              };
+              url: string;
+            };
+          } | null;
+          defaultBranchRef: {
+            name: string;
+            target: {
+              oid: string;
+            };
+          } | null;
+        };
+      }>(query, { owner, name: repo, branch: branchRef });
+
+      if (!response.repository.ref) {
+        throw new Error(`Branch '${branch}' not found`);
+      }
+
+      const branchData = response.repository.ref;
+      const defaultBranch = response.repository.defaultBranchRef;
+      
+      // Check if branch is protected
+      let isProtected = false;
+      try {
+        await this._octokit.rest.repos.getBranchProtection({
+          owner,
+          repo,
+          branch,
+        });
+        isProtected = true;
+      } catch (error) {
+        // Branch is not protected or we don't have permission to check
+        isProtected = false;
+      }
+
+      // Calculate ahead/behind commits compared to default branch
+      let ahead = 0;
+      let behind = 0;
+      
+      if (defaultBranch && branchData.target.oid !== defaultBranch.target.oid) {
+        try {
+          const compareResponse = await this._octokit.rest.repos.compareCommits({
+            owner,
+            repo,
+            base: defaultBranch.name,
+            head: branch,
+          });
+          
+          ahead = compareResponse.data.ahead_by;
+          behind = compareResponse.data.behind_by;
+        } catch (error) {
+          // Comparison failed, use defaults
+          console.warn('Could not compare branches:', error);
+        }
+      }
+
+      return {
+        name: branchData.name.replace('refs/heads/', ''),
+        sha: branchData.target.oid,
+        protected: isProtected,
+        url: `https://github.com/${owner}/${repo}/tree/${branch}`,
+        ahead,
+        behind,
+        lastCommit: {
+          sha: branchData.target.oid.substring(0, 7),
+          message: branchData.target.message.split('\n')[0],
+          author: branchData.target.author.name,
+          date: branchData.target.author.date,
+          url: branchData.target.url,
+        },
+        baseBranch: defaultBranch?.name,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get branch info for '${branch}' in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Branch Management Methods
+  async createBranch(
+    owner: string,
+    repo: string,
+    branchName: string,
+    baseBranch: string = 'main',
+    description?: string
+  ): Promise<{
+    name: string;
+    sha: string;
+    url: string;
+    ref: string;
+    baseBranch: string;
+  }> {
+    try {
+      // Security validation: Prevent dangerous branch operations
+      const protectedBranches = ['main', 'master', 'develop', 'staging', 'production'];
+      const isProtected = protectedBranches.includes(branchName.toLowerCase());
+      if (isProtected) {
+        throw new Error(`Cannot create branch with protected name: ${branchName}`);
+      }
+
+      // Validate branch name format
+      const validBranchName = /^[a-zA-Z0-9\-_\/]+$/.test(branchName);
+      if (!validBranchName) {
+        throw new Error(`Invalid branch name format: ${branchName}. Use only letters, numbers, hyphens, underscores, and forward slashes.`);
+      }
+
+      // Check if branch already exists
+      try {
+        await this.getBranchInfo(owner, repo, branchName);
+        throw new Error(`Branch '${branchName}' already exists`);
+      } catch (error: any) {
+        if (!error.message.includes('not found')) {
+          throw error; // Re-throw if it's not a "not found" error
+        }
+        // Branch doesn't exist, which is what we want
+      }
+
+      // Get the base branch SHA
+      const baseBranchInfo = await this.getBranchInfo(owner, repo, baseBranch);
+      const baseSha = baseBranchInfo.sha;
+
+      // Create the new branch using GraphQL mutation
+      const mutation = `
+        mutation($repositoryId: ID!, $name: String!, $oid: GitObjectID!) {
+          createRef(input: {
+            repositoryId: $repositoryId,
+            name: $name,
+            oid: $oid
+          }) {
+            ref {
+              name
+              target {
+                oid
+              }
+              repository {
+                url
+              }
+            }
+          }
+        }
+      `;
+
+      // Get repository ID first
+      const repoQuery = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            id
+          }
+        }
+      `;
+
+      const repoResponse = await this._octokit.graphql<{
+        repository: { id: string };
+      }>(repoQuery, { owner, name: repo });
+
+      const repositoryId = repoResponse.repository.id;
+      const refName = `refs/heads/${branchName}`;
+
+      const response = await this._octokit.graphql<{
+        createRef: {
+          ref: {
+            name: string;
+            target: {
+              oid: string;
+            };
+            repository: {
+              url: string;
+            };
+          };
+        };
+      }>(mutation, {
+        repositoryId,
+        name: refName,
+        oid: baseSha,
+      });
+
+      const newBranch = response.createRef.ref;
+      
+      return {
+        name: branchName,
+        sha: newBranch.target.oid,
+        url: `${newBranch.repository.url}/tree/${branchName}`,
+        ref: newBranch.name,
+        baseBranch,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create branch '${branchName}' in ${owner}/${repo}: ${error.message}`);
+    }
+  }
+
+  // Code Commit System
+  async commitChanges(
+    owner: string,
+    repo: string,
+    branch: string,
+    message: string,
+    changes: Array<{
+      path: string;
+      content: string;
+      operation: 'create' | 'update';
+      encoding?: string;
+    }>
+  ): Promise<{
+    commit: {
+      sha: string;
+      url: string;
+      message: string;
+      author: string;
+    };
+    filesChanged: number;
+    branch: string;
+  }> {
+    try {
+      // Security validation: Prevent dangerous operations
+      const allowedOperations = ['create', 'update']; // No 'delete'
+      const hasInvalidOp = changes.some(c => !allowedOperations.includes(c.operation));
+      if (hasInvalidOp) {
+        throw new Error('Only create and update operations are permitted. Delete operations are not allowed.');
+      }
+
+      // Validate file paths (prevent system files modification)
+      const dangerousPaths = [
+        '.git/',
+        '/.github/workflows/',
+        '/package-lock.json',
+        'yarn.lock',
+        '/node_modules/',
+        '/.env',
+        '/secrets/',
+        '/private/',
+        '.ssh/',
+        '.aws/',
+        '.gcp/',
+      ];
+      
+      const hasDangerousPath = changes.some(c => 
+        dangerousPaths.some(dp => c.path.toLowerCase().includes(dp.toLowerCase()))
+      );
+      
+      if (hasDangerousPath) {
+        throw new Error('Cannot modify system files, lock files, or sensitive directories');
+      }
+
+      // Validate branch (prevent commits to protected branches)
+      const protectedBranches = ['main', 'master', 'develop', 'staging', 'production'];
+      const isProtected = protectedBranches.includes(branch.toLowerCase());
+      if (isProtected) {
+        throw new Error(`Cannot commit directly to protected branch: ${branch}`);
+      }
+
+      // Get branch information and current commit SHA
+      const branchInfo = await this.getBranchInfo(owner, repo, branch);
+      const parentSha = branchInfo.sha;
+
+      // Get repository ID
+      const repoQuery = `
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            id
+          }
+        }
+      `;
+
+      const repoResponse = await this._octokit.graphql<{
+        repository: { id: string };
+      }>(repoQuery, { owner, name: repo });
+
+      const repositoryId = repoResponse.repository.id;
+
+      // For each file change, get current file info if it exists (for updates)
+      const fileInfoPromises = changes.map(async (change) => {
+        if (change.operation === 'update') {
+          try {
+            const fileInfo = await this.getRepositoryFile(owner, repo, change.path, branch);
+            return { ...change, currentSha: fileInfo.sha };
+          } catch (error) {
+            // File doesn't exist, treat as create
+            return { ...change, operation: 'create' as const, currentSha: null };
+          }
+        }
+        return { ...change, currentSha: null };
+      });
+
+      const fileChanges = await Promise.all(fileInfoPromises);
+
+      // Build tree entries for all changes
+      const treeEntries = fileChanges.map(change => ({
+        path: change.path,
+        mode: '100644', // Regular file
+        type: 'blob' as const,
+        content: change.content,
+      }));
+
+      // Create tree using REST API (GraphQL doesn't support tree creation)
+      const treeResponse = await this._octokit.rest.git.createTree({
+        owner,
+        repo,
+        tree: treeEntries,
+        base_tree: parentSha, // Base on current branch state
+      });
+
+      // Create commit
+      const commitResponse = await this._octokit.rest.git.createCommit({
+        owner,
+        repo,
+        message,
+        tree: treeResponse.data.sha,
+        parents: [parentSha],
+      });
+
+      // Update branch reference to point to new commit
+      await this._octokit.rest.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+        sha: commitResponse.data.sha,
+      });
+
+      return {
+        commit: {
+          sha: commitResponse.data.sha,
+          url: commitResponse.data.html_url,
+          message: commitResponse.data.message,
+          author: commitResponse.data.author.name,
+        },
+        filesChanged: changes.length,
+        branch,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to commit changes to '${branch}' in ${owner}/${repo}: ${error.message}`);
+    }
+  }
 }
