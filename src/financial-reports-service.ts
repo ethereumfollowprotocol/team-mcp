@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export interface FinancialReport {
   quarter: string;
@@ -33,14 +33,14 @@ export class FinancialReportsService {
     // Define your financial reports here with pre-cached data for common queries
     const reportsData: FinancialReport[] = [
       {
-        quarter: "Q2",
+        quarter: 'Q2',
         year: 2024,
-        imageUrls: ["https://discuss.ens.domains/uploads/db9688/original/2X/5/5bdec62cae38cdfe36e9d3f55bee6fb9c8a01514.jpeg"],
+        imageUrls: ['https://discuss.ens.domains/uploads/db9688/original/2X/5/5bdec62cae38cdfe36e9d3f55bee6fb9c8a01514.jpeg'],
         // Pre-cached data for Q2 2024 based on actual financial reports
         extractedData: {
           revenue: 124672.65,
           expenses: 62717.75,
-          netIncome: 61954.90,
+          netIncome: 61954.9,
           assets: 146006.91,
           liabilities: 10245.94,
           equity: 135760.97,
@@ -51,19 +51,19 @@ export class FinancialReportsService {
             expense_salaries: 59803.32,
             expense_ens_registration: 674.53,
             expense_eth_gas: 39.66,
-            expense_legal_services: 5441.00,
+            expense_legal_services: 5441.0,
             expense_software: 2874.77,
             unreimbursed_admin_costs: 10245.94,
           },
-          rawText: "Pre-cached financial data for Q2 2024 - Based on actual OCR extraction"
-        }
+          rawText: 'Pre-cached financial data for Q2 2024 - Based on actual OCR extraction',
+        },
       },
       {
-        quarter: "Q3",
+        quarter: 'Q3',
         year: 2024,
         imageUrls: [
-          "https://discuss.ens.domains/uploads/db9688/original/2X/5/5d0ebd43d1552fb872d92ce4d675930c484608f5.jpeg",
-          "https://discuss.ens.domains/uploads/db9688/original/2X/0/0439583f5c1b4ca4c304be8b0e561c20c8d839c5.jpeg",
+          'https://discuss.ens.domains/uploads/db9688/original/2X/5/5d0ebd43d1552fb872d92ce4d675930c484608f5.jpeg',
+          'https://discuss.ens.domains/uploads/db9688/original/2X/0/0439583f5c1b4ca4c304be8b0e561c20c8d839c5.jpeg',
         ],
         // Pre-cached data for Q3 2024 based on actual financial reports
         extractedData: {
@@ -81,32 +81,32 @@ export class FinancialReportsService {
             usdc_holdings: 14196.71,
             unreimbursed_admin_costs: 2305.69,
             income_ens_dao_stream: 127397.26,
-            income_mask_grant: 50000.00,
+            income_mask_grant: 50000.0,
             income_realized_gain_loss: 22.33,
-            expense_team: 71562.50,
+            expense_team: 71562.5,
             expense_legal_services: 13566.34,
             expense_bounties: 18650.89,
             expense_services: 1064.48,
-            expense_conferences_travel: 4910.70,
+            expense_conferences_travel: 4910.7,
             expense_other: 2160.22,
-            expense_poap: 1175.00,
-            expense_accounting: 465.00,
+            expense_poap: 1175.0,
+            expense_accounting: 465.0,
             expense_eth_gas: 250.03,
           },
-          rawText: "Pre-cached financial data for Q3 2024 - Based on actual OCR extraction"
-        }
+          rawText: 'Pre-cached financial data for Q3 2024 - Based on actual OCR extraction',
+        },
       },
       {
-        quarter: "Q4",
+        quarter: 'Q4',
         year: 2024,
         imageUrls: [
-          "https://discuss.ens.domains/uploads/db9688/original/2X/7/7a80fa4dbe56021c02e2b28a57a7a5e1d3f04fc6.png",
-          "https://discuss.ens.domains/uploads/db9688/original/2X/2/2065db635fef13ba9c9314806d14c4248f2cec62.png",
+          'https://discuss.ens.domains/uploads/db9688/original/2X/7/7a80fa4dbe56021c02e2b28a57a7a5e1d3f04fc6.png',
+          'https://discuss.ens.domains/uploads/db9688/original/2X/2/2065db635fef13ba9c9314806d14c4248f2cec62.png',
         ],
         // Pre-cached data for Q4 2024 based on actual financial reports
         extractedData: {
           revenue: 164070.13,
-          expenses: 125189.30,
+          expenses: 125189.3,
           netIncome: 38880.83,
           assets: 406374.77,
           liabilities: 4808.34,
@@ -125,22 +125,22 @@ export class FinancialReportsService {
             income_ens_dao_vesting: 37854.17,
             expense_team: 96803.15,
             expense_services: 8672.58,
-            expense_poap: 6750.00,
-            expense_other: 5659.10,
+            expense_poap: 6750.0,
+            expense_other: 5659.1,
             expense_legal_services: 2725.72,
-            expense_bounties: 2124.40,
+            expense_bounties: 2124.4,
           },
-          rawText: "Pre-cached financial data for Q4 2024 - Based on actual OCR extraction"
-        }
+          rawText: 'Pre-cached financial data for Q4 2024 - Based on actual OCR extraction',
+        },
       },
       {
-        quarter: "Q1",
+        quarter: 'Q1',
         year: 2025,
         imageUrls: [
-          "https://discuss.ens.domains/uploads/db9688/original/2X/c/ce762dfc423f269864fd98a3f2c0ae2c5ef42c5e.png",
-          "https://discuss.ens.domains/uploads/db9688/original/2X/0/04aac8f3fa4755ca5dc2a94ae55abe11b0300972.png",
+          'https://discuss.ens.domains/uploads/db9688/original/2X/c/ce762dfc423f269864fd98a3f2c0ae2c5ef42c5e.png',
+          'https://discuss.ens.domains/uploads/db9688/original/2X/0/04aac8f3fa4755ca5dc2a94ae55abe11b0300972.png',
         ],
-        // Pre-cached data for Q1 2025 based on actual financial reports  
+        // Pre-cached data for Q1 2025 based on actual financial reports
         extractedData: {
           revenue: 153038.12,
           expenses: 99291.75,
@@ -165,19 +165,19 @@ export class FinancialReportsService {
             expense_conferences_travel: 658.17,
             expense_accounting: 445.73,
           },
-          rawText: "Pre-cached financial data for Q1 2025 - Based on actual OCR extraction"
-        }
+          rawText: 'Pre-cached financial data for Q1 2025 - Based on actual OCR extraction',
+        },
       },
       {
-        quarter: "Q2",
+        quarter: 'Q2',
         year: 2025,
         imageUrls: [
-          "https://discuss.ens.domains/uploads/db9688/original/2X/b/b2b1c0b8f3961a9edd7c7e0b58f37b6e606a1058.jpeg",
-          "https://discuss.ens.domains/uploads/db9688/original/2X/9/955551005f60b3ba73e1c5d87be1ee910684faf5.jpeg",
+          'https://discuss.ens.domains/uploads/db9688/original/2X/b/b2b1c0b8f3961a9edd7c7e0b58f37b6e606a1058.jpeg',
+          'https://discuss.ens.domains/uploads/db9688/original/2X/9/955551005f60b3ba73e1c5d87be1ee910684faf5.jpeg',
         ],
         // Pre-cached data for Q2 2025 based on actual financial reports
         extractedData: {
-          revenue: 148890.20,
+          revenue: 148890.2,
           expenses: 103413.67,
           netIncome: 45476.53,
           assets: 382787.42,
@@ -196,14 +196,14 @@ export class FinancialReportsService {
             income_ens_dao_stream: 124657.51,
             income_ens_dao_vesting: 24233.35,
             income_realized_gain_loss: -0.66,
-            expense_accounting: 1009.90,
-            expense_conferences_travel: 1462.40,
+            expense_accounting: 1009.9,
+            expense_conferences_travel: 1462.4,
             expense_eth_gas: 3.92,
             expense_services: 4337.45,
-            expense_team: 96600.00,
+            expense_team: 96600.0,
           },
-          rawText: "Pre-cached financial data for Q2 2025 - Based on actual OCR extraction"
-        }
+          rawText: 'Pre-cached financial data for Q2 2025 - Based on actual OCR extraction',
+        },
       },
     ];
 
@@ -235,14 +235,14 @@ export class FinancialReportsService {
         const timeoutPromise = new Promise<string>((_, reject) => {
           setTimeout(() => reject(new Error('OCR timeout')), 15000);
         });
-        
+
         const ocrPromise = this.ocrSpaceExtract(imageUrl);
-        
+
         const ocrText = await Promise.race([ocrPromise, timeoutPromise]);
         return ocrText;
       } catch (error) {
         console.error(`Error processing image ${imageUrl}:`, error);
-        return "";
+        return '';
       }
     });
 
@@ -250,27 +250,27 @@ export class FinancialReportsService {
     const results = await Promise.all(ocrPromises);
     extractedTexts.push(...results);
 
-    const combinedText = extractedTexts.join("\n\n");
+    const combinedText = extractedTexts.join('\n\n');
     return this.parseFinancialData(combinedText);
   }
 
   // OCR.space implementation (recommended for quick setup)
   private async ocrSpaceExtract(imageUrl: string): Promise<string> {
     const formData = new FormData();
-    formData.append("url", imageUrl);
-    formData.append("apikey", this.env.OCR_SPACE_API_KEY!);
-    formData.append("language", "eng");
-    formData.append("isOverlayRequired", "false");
-    formData.append("scale", "true");
-    formData.append("OCREngine", "2"); // OCR Engine 2 is better for structured documents
+    formData.append('url', imageUrl);
+    formData.append('apikey', this.env.OCR_SPACE_API_KEY!);
+    formData.append('language', 'eng');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('scale', 'true');
+    formData.append('OCREngine', '2'); // OCR Engine 2 is better for structured documents
 
     // Add AbortController for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
 
     try {
-      const response = await fetch("https://api.ocr.space/parse/image", {
-        method: "POST",
+      const response = await fetch('https://api.ocr.space/parse/image', {
+        method: 'POST',
         body: formData,
         signal: controller.signal,
       });
@@ -288,10 +288,10 @@ export class FinancialReportsService {
       };
 
       if (result.OCRExitCode === 1 && result.ParsedResults?.[0]) {
-        return result.ParsedResults[0].ParsedText || "";
+        return result.ParsedResults[0].ParsedText || '';
       }
 
-      throw new Error(`OCR failed: ${result.ErrorMessage || "Unknown error"}`);
+      throw new Error(`OCR failed: ${result.ErrorMessage || 'Unknown error'}`);
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
@@ -318,11 +318,11 @@ export class FinancialReportsService {
   // Parse income statement with quarter-specific column detection
   private parseIncomeStatement(text: string, data: ExtractedFinancialData): void {
     const lines = text.split('\n');
-    
+
     // Detect which quarter columns are present and find target column
     const quarterColumns = this.detectQuarterColumns(text);
     const targetColumn = this.findTargetQuarter(quarterColumns, text);
-    
+
     if (!targetColumn) {
       console.log('No target quarter column detected, attempting fallback extraction');
       // Try fallback extraction for cases where column detection fails
@@ -331,11 +331,11 @@ export class FinancialReportsService {
     }
 
     console.log(`Target column detected: ${targetColumn.dateRange} at position ${targetColumn.position}`);
-    
+
     // Find Total Income line and extract value for target quarter
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       if (line.includes('Total Income')) {
         // Look for values on this line or next few lines
         const incomeValue = this.extractValueAtPosition(lines, i, targetColumn);
@@ -344,7 +344,7 @@ export class FinancialReportsService {
           console.log(`Extracted revenue: ${data.revenue}`);
         }
       }
-      
+
       if (line.includes('Total Expenses')) {
         const expenseValue = this.extractValueAtPosition(lines, i, targetColumn);
         if (expenseValue !== null) {
@@ -364,53 +364,56 @@ export class FinancialReportsService {
   }
 
   // Detect quarter columns from header patterns
-  private detectQuarterColumns(text: string): Array<{dateRange: string, position: number}> {
-    const quarterPatterns = [
-      /(\d{1,2}\/\d{1,2}\/\d{2,4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})/g,
-      /(Through\s+\d{4})/g
-    ];
-    
-    const columns: Array<{dateRange: string, position: number}> = [];
-    
+  private detectQuarterColumns(text: string): Array<{ dateRange: string; position: number }> {
+    const quarterPatterns = [/(\d{1,2}\/\d{1,2}\/\d{2,4}\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})/g, /(Through\s+\d{4})/g];
+
+    const columns: Array<{ dateRange: string; position: number }> = [];
+
     for (const pattern of quarterPatterns) {
       let match;
       while ((match = pattern.exec(text)) !== null) {
         columns.push({
           dateRange: match[1],
-          position: match.index
+          position: match.index,
         });
       }
     }
-    
-    console.log(`Detected ${columns.length} quarter columns:`, columns.map(c => c.dateRange));
-    
+
+    console.log(
+      `Detected ${columns.length} quarter columns:`,
+      columns.map((c) => c.dateRange),
+    );
+
     // Sort by position in text
     return columns.sort((a, b) => a.position - b.position);
   }
 
   // Find the target quarter based on report structure
-  private findTargetQuarter(columns: Array<{dateRange: string, position: number}>, text: string): {dateRange: string, position: number, columnIndex: number} | null {
+  private findTargetQuarter(
+    columns: Array<{ dateRange: string; position: number }>,
+    text: string,
+  ): { dateRange: string; position: number; columnIndex: number } | null {
     if (columns.length === 0) return null;
-    
+
     // Identify the report type and target the most recent complete quarter
     // For cumulative reports (Through 2024), find the most recent quarter column
     // For quarterly reports, find the specific quarter being reported
-    
+
     let bestColumn = null;
     let bestColumnIndex = -1;
-    
+
     // Check for specific quarters in priority order (most recent first)
     const quarterPriority = [
-      { pattern: /4\/1\/25\s*-\s*6\/30\/25/, name: 'Q2 2025' },   // Q2 2025
-      { pattern: /1\/1\/25\s*-\s*3\/31\/25/, name: 'Q1 2025' },   // Q1 2025  
+      { pattern: /4\/1\/25\s*-\s*6\/30\/25/, name: 'Q2 2025' }, // Q2 2025
+      { pattern: /1\/1\/25\s*-\s*3\/31\/25/, name: 'Q1 2025' }, // Q1 2025
       { pattern: /10\/1\/24\s*-\s*12\/31\/24/, name: 'Q4 2024' }, // Q4 2024
-      { pattern: /7\/1\/24\s*-\s*9\/30\/24/, name: 'Q3 2024' },   // Q3 2024
-      { pattern: /4\/1\/24\s*-\s*6\/30\/24/, name: 'Q2 2024' },   // Q2 2024
+      { pattern: /7\/1\/24\s*-\s*9\/30\/24/, name: 'Q3 2024' }, // Q3 2024
+      { pattern: /4\/1\/24\s*-\s*6\/30\/24/, name: 'Q2 2024' }, // Q2 2024
     ];
-    
+
     // Try to find highest priority quarter
     for (const { pattern, name } of quarterPriority) {
-      const matchingColumnIndex = columns.findIndex(col => pattern.test(col.dateRange));
+      const matchingColumnIndex = columns.findIndex((col) => pattern.test(col.dateRange));
       if (matchingColumnIndex !== -1) {
         bestColumn = columns[matchingColumnIndex];
         bestColumnIndex = matchingColumnIndex;
@@ -418,38 +421,42 @@ export class FinancialReportsService {
         break;
       }
     }
-    
+
     // If no specific quarter found, use the last column (usually most recent)
     if (!bestColumn && columns.length > 0) {
       bestColumn = columns[columns.length - 1];
       bestColumnIndex = columns.length - 1;
       console.log(`Using fallback column: ${bestColumn.dateRange}`);
     }
-    
+
     return bestColumn ? { ...bestColumn, columnIndex: bestColumnIndex } : null;
   }
 
   // Extract value at specific position (column) from table
-  private extractValueAtPosition(lines: string[], startLine: number, targetColumn: {dateRange: string, position: number, columnIndex: number}): number | null {
+  private extractValueAtPosition(
+    lines: string[],
+    startLine: number,
+    targetColumn: { dateRange: string; position: number; columnIndex: number },
+  ): number | null {
     // Look at the current line and next few lines for values
     for (let i = startLine; i < Math.min(startLine + 3, lines.length); i++) {
       const line = lines[i];
       const values = this.extractAllNumbersFromLine(line);
-      
+
       if (values.length > 0) {
         // Use column index to select the right value
         // Column index represents the chronological position of quarters
-        
+
         if (values.length > targetColumn.columnIndex) {
           return values[targetColumn.columnIndex];
         }
-        
+
         // Smart fallback based on known patterns
         if (targetColumn.dateRange.includes('10/1/24 - 12/31/24')) {
           // Q4 2024 - usually the last or second-to-last value
           return values[values.length - 1];
         } else if (targetColumn.dateRange.includes('1/1/25 - 3/31/25')) {
-          // Q1 2025 - usually appears as second column in newer reports  
+          // Q1 2025 - usually appears as second column in newer reports
           return values.length >= 2 ? values[1] : values[0];
         } else if (targetColumn.dateRange.includes('4/1/25 - 6/30/25')) {
           // Q2 2025 - usually the last value in most recent reports
@@ -461,19 +468,19 @@ export class FinancialReportsService {
           // Q2 2024 - first quarter column
           return values.length >= 2 ? values[1] : values[0];
         }
-        
+
         // Default fallback
         return values[Math.min(targetColumn.columnIndex, values.length - 1)];
       }
     }
-    
+
     return null;
   }
 
   // Extract all numbers from a line (currency values and parentheses)
   private extractAllNumbersFromLine(line: string): number[] {
     const numbers: number[] = [];
-    
+
     // Pattern for currency values $123,456.78
     const currencyPattern = /\$\s*([\d,]+(?:\.\d+)?)/g;
     let match;
@@ -483,7 +490,7 @@ export class FinancialReportsService {
         numbers.push(value);
       }
     }
-    
+
     // Pattern for negative values in parentheses (123,456.78) or ($123,456.78)
     const negativePattern = /\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)/g;
     while ((match = negativePattern.exec(line)) !== null) {
@@ -492,19 +499,23 @@ export class FinancialReportsService {
         numbers.push(value);
       }
     }
-    
+
     return numbers;
   }
 
   // Extract individual line items (income sources, expense categories)
-  private extractLineItems(lines: string[], targetColumn: {dateRange: string, position: number, columnIndex: number}, data: ExtractedFinancialData): void {
+  private extractLineItems(
+    lines: string[],
+    targetColumn: { dateRange: string; position: number; columnIndex: number },
+    data: ExtractedFinancialData,
+  ): void {
     const incomeItems = [
       { pattern: /ENS DAO Service Provider Stream/i, key: 'ens_dao_stream' },
       { pattern: /ENS DAO Service Provider Vesting/i, key: 'ens_dao_vesting' },
       { pattern: /MASK Network Grant/i, key: 'mask_grant' },
-      { pattern: /Realized Gain\/Loss/i, key: 'realized_gain_loss' }
+      { pattern: /Realized Gain\/Loss/i, key: 'realized_gain_loss' },
     ];
-    
+
     const expenseItems = [
       { pattern: /Accounting/i, key: 'accounting' },
       { pattern: /Bounties/i, key: 'bounties' },
@@ -514,12 +525,12 @@ export class FinancialReportsService {
       { pattern: /Other/i, key: 'other' },
       { pattern: /POAP/i, key: 'poap' },
       { pattern: /Services/i, key: 'services' },
-      { pattern: /Team/i, key: 'team' }
+      { pattern: /Team/i, key: 'team' },
     ];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      
+
       // Check income items
       for (const item of incomeItems) {
         if (item.pattern.test(line)) {
@@ -529,8 +540,8 @@ export class FinancialReportsService {
           }
         }
       }
-      
-      // Check expense items  
+
+      // Check expense items
       for (const item of expenseItems) {
         if (item.pattern.test(line) && !line.includes('Total')) {
           const value = this.extractValueAtPosition(lines, i, targetColumn);
@@ -549,10 +560,10 @@ export class FinancialReportsService {
     if (!balanceSheetMatch) {
       return;
     }
-    
+
     const balanceSheetText = balanceSheetMatch[0];
     const lines = balanceSheetText.split('\n');
-    
+
     for (const line of lines) {
       // Parse ETH holdings: ETH (61.763 @ $3,332.53)
       const ethMatch = line.match(/ETH\s*\(([\d,.]+)\s*@\s*\$([\d,]+(?:\.\d+)?)\)/i);
@@ -560,24 +571,24 @@ export class FinancialReportsService {
         const quantity = parseFloat(ethMatch[1].replace(/,/g, ''));
         const price = parseFloat(ethMatch[2].replace(/,/g, ''));
         const value = quantity * price;
-        
+
         data.customMetrics!['eth_holdings'] = quantity;
         data.customMetrics!['eth_price'] = price;
         data.customMetrics!['eth_value'] = value;
       }
-      
+
       // Parse ENS holdings: ENS (4290.029 @ $33.67)
       const ensMatch = line.match(/ENS\s*\(([\d,.]+)\s*@\s*\$([\d,]+(?:\.\d+)?)\)/i);
       if (ensMatch) {
         const quantity = parseFloat(ensMatch[1].replace(/,/g, ''));
         const price = parseFloat(ensMatch[2].replace(/,/g, ''));
         const value = quantity * price;
-        
+
         data.customMetrics!['ens_holdings'] = quantity;
         data.customMetrics!['ens_price'] = price;
         data.customMetrics!['ens_value'] = value;
       }
-      
+
       // Parse USDC/USDCx holdings
       const usdcMatch = line.match(/(USDC[xX]?)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
       if (usdcMatch) {
@@ -585,7 +596,7 @@ export class FinancialReportsService {
         const value = parseFloat(usdcMatch[2].replace(/,/g, ''));
         data.customMetrics![`${currency}_holdings`] = value;
       }
-      
+
       // Parse Net total assets
       const netMatch = line.match(/^Net\s*\$\s*([\d,]+(?:\.\d+)?)/i);
       if (netMatch) {
@@ -593,7 +604,7 @@ export class FinancialReportsService {
         data.assets = netAssets;
         data.equity = netAssets;
       }
-      
+
       // Parse Unreimbursed Admin Costs (liabilities)
       const liabilityMatch = line.match(/Unreimbursed.*\$\s*\(([\d,]+(?:\.\d+)?)\)/i);
       if (liabilityMatch) {
@@ -619,7 +630,7 @@ export class FinancialReportsService {
   }
 
   private parseNumberValue(numberStr: string, fullMatch: string): number {
-    const cleanNumber = parseFloat(numberStr.replace(/,/g, ""));
+    const cleanNumber = parseFloat(numberStr.replace(/,/g, ''));
 
     // Check for multipliers
     if (fullMatch.match(/billion|B/i)) {
@@ -636,26 +647,27 @@ export class FinancialReportsService {
   // Fallback extraction method for when column detection fails
   private extractWithFallback(text: string, data: ExtractedFinancialData): void {
     console.log('Using fallback extraction method');
-    
+
     // Look for specific patterns in the Q2 2024 format
     const lines = text.split('\n');
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       // Look for "Total Income" line followed by values
       if (line.includes('Total Income')) {
         // In Q2 2024 format, the next few lines should contain the values
         for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
           const valueLine = lines[j];
           const values = this.extractAllNumbersFromLine(valueLine);
-          
+
           // Look for the pattern where we have multiple values
           // Q2 2024 pattern: (12.79) $ 124,672.65 $ 205,760.97
           if (values.length >= 2) {
             // Usually the second-to-last or last value is the quarterly value
             const quarterlyValue = values.length >= 3 ? values[values.length - 2] : values[values.length - 1];
-            if (quarterlyValue > 1000) { // Reasonable revenue threshold
+            if (quarterlyValue > 1000) {
+              // Reasonable revenue threshold
               data.revenue = Math.abs(quarterlyValue);
               console.log(`Fallback extracted revenue: ${data.revenue}`);
               break;
@@ -663,16 +675,16 @@ export class FinancialReportsService {
           }
         }
       }
-      
+
       // Look for "Total Expenses" line
       if (line.includes('Total Expenses')) {
         for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
           const valueLine = lines[j];
           const values = this.extractAllNumbersFromLine(valueLine);
-          
+
           if (values.length >= 2) {
             // Look for negative values or large positive values
-            const expenseValue = values.find(v => Math.abs(v) > 1000);
+            const expenseValue = values.find((v) => Math.abs(v) > 1000);
             if (expenseValue !== undefined) {
               data.expenses = Math.abs(expenseValue);
               console.log(`Fallback extracted expenses: ${data.expenses}`);
@@ -681,7 +693,7 @@ export class FinancialReportsService {
           }
         }
       }
-      
+
       // Look for Net value - in Q2 2024, it shows "61,954.90 $ 135,760.97"
       if (line.includes('Net') && !line.includes('Total') && !line.includes('Income')) {
         const values = this.extractAllNumbersFromLine(line);
@@ -694,7 +706,7 @@ export class FinancialReportsService {
         }
       }
     }
-    
+
     // Calculate net income if we have revenue and expenses but no net income
     if (data.revenue !== undefined && data.expenses !== undefined && data.netIncome === undefined) {
       data.netIncome = data.revenue - data.expenses;

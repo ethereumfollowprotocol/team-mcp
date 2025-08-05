@@ -1,13 +1,13 @@
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpAgent } from "agents/mcp";
-import { Octokit } from "octokit";
-import { z } from "zod";
-import { GitHubHandler } from "./github-handler";
-import { GitHubApiService } from "./github-api-service";
-import { FinancialReportsService } from "./financial-reports-service";
-import { EFP_STATS_DUNE_QUERIES, PROJECT_BOARD_ID, PROJECT_STATUSES } from "./const";
-import { ProjectStatus } from "./types";
+import OAuthProvider from '@cloudflare/workers-oauth-provider';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpAgent } from 'agents/mcp';
+import { Octokit } from 'octokit';
+import { z } from 'zod';
+import { GitHubHandler } from './github-handler';
+import { GitHubApiService } from './github-api-service';
+import { FinancialReportsService } from './financial-reports-service';
+import { EFP_STATS_DUNE_QUERIES, PROJECT_BOARD_ID, PROJECT_STATUSES } from './const';
+import { ProjectStatus } from './types';
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -20,9 +20,9 @@ type Props = {
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
   server = new McpServer({
-    name: "Team MCP",
-    version: "1.0.0",
-    description: "GitHub team management MCP server with Claude and ChatGPT support",
+    name: 'Team MCP',
+    version: '1.0.0',
+    description: 'GitHub team management MCP server with Claude and ChatGPT support',
   });
 
   // Helper method to set project item status
@@ -34,10 +34,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const projectDetails = await githubApi.getProjectDetails(projectId);
-      const statusField = projectDetails.fields.find((f) => f.name.toLowerCase() === "status" && f.dataType === "SINGLE_SELECT");
+      const statusField = projectDetails.fields.find((f) => f.name.toLowerCase() === 'status' && f.dataType === 'SINGLE_SELECT');
 
       if (!statusField) {
-        return { success: false, error: "Status field not found in project" };
+        return { success: false, error: 'Status field not found in project' };
       }
 
       const statusOption = statusField.options?.find((opt) => opt.name === status);
@@ -62,13 +62,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
     const financialReportsService = new FinancialReportsService(this.env);
 
     // Use the upstream access token to facilitate tools
-    this.server.tool("userInfoOctokit", "Get user info from GitHub, via Octokit", {}, async () => {
+    this.server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
       const octokit = new Octokit({ auth: this.props.accessToken });
       return {
         content: [
           {
             text: JSON.stringify(await octokit.rest.users.getAuthenticated()),
-            type: "text",
+            type: 'text',
           },
         ],
       };
@@ -76,13 +76,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // List repositories for a GitHub organization
     this.server.tool(
-      "listOrganizationRepos",
-      "List all repositories for a GitHub organization with filtering options",
+      'listOrganizationRepos',
+      'List all repositories for a GitHub organization with filtering options',
       {
-        organization: z.string().describe("The GitHub organization name"),
-        includePrivate: z.boolean().optional().default(true).describe("Include private repositories"),
-        sortBy: z.enum(["name", "updated", "created", "pushed"]).optional().default("updated").describe("Sort repositories by"),
-        limit: z.number().optional().default(50).describe("Maximum number of repositories to return"),
+        organization: z.string().describe('The GitHub organization name'),
+        includePrivate: z.boolean().optional().default(true).describe('Include private repositories'),
+        sortBy: z.enum(['name', 'updated', 'created', 'pushed']).optional().default('updated').describe('Sort repositories by'),
+        limit: z.number().optional().default(50).describe('Maximum number of repositories to return'),
       },
       async ({ organization, includePrivate, sortBy, limit }) => {
         try {
@@ -90,11 +90,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           // Sort repositories
           let sortedRepos = repos;
-          if (sortBy === "name") {
+          if (sortBy === 'name') {
             sortedRepos = repos.sort((a, b) => a.name.localeCompare(b.name));
-          } else if (sortBy === "created") {
+          } else if (sortBy === 'created') {
             sortedRepos = repos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          } else if (sortBy === "pushed") {
+          } else if (sortBy === 'pushed') {
             sortedRepos = repos.sort((a, b) => new Date(b.pushed_at).getTime() - new Date(a.pushed_at).getTime());
           }
 
@@ -121,11 +121,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(summary, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(summary, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -133,13 +133,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get recent activity for GitHub organization repositories
     this.server.tool(
-      "getRecentActivity",
-      "Get recent activity for repositories in a GitHub organization, showing commits, issues, and PRs from the last N days",
+      'getRecentActivity',
+      'Get recent activity for repositories in a GitHub organization, showing commits, issues, and PRs from the last N days',
       {
-        organization: z.string().describe("The GitHub organization name"),
-        days: z.number().optional().default(7).describe("Number of days to look back for activity"),
-        includePrivate: z.boolean().optional().default(true).describe("Include private repositories"),
-        limit: z.number().optional().default(20).describe("Maximum number of repositories to show"),
+        organization: z.string().describe('The GitHub organization name'),
+        days: z.number().optional().default(7).describe('Number of days to look back for activity'),
+        includePrivate: z.boolean().optional().default(true).describe('Include private repositories'),
+        limit: z.number().optional().default(20).describe('Maximum number of repositories to show'),
       },
       async ({ organization, days, includePrivate, limit }) => {
         try {
@@ -168,7 +168,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                   ? {
                       author: repo.recent_commits[0].commit.author.name,
                       date: repo.recent_commits[0].commit.author.date,
-                      message: repo.recent_commits[0].commit.message.split("\n")[0],
+                      message: repo.recent_commits[0].commit.message.split('\n')[0],
                     }
                   : null,
                 top_contributors: repo.top_contributors.slice(0, 3).map((c) => ({
@@ -183,11 +183,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -195,13 +195,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Search for issues and pull requests in a GitHub organization
     this.server.tool(
-      "searchIssuesAndPRs",
-      "Search for issues and pull requests across all repositories in a GitHub organization",
+      'searchIssuesAndPRs',
+      'Search for issues and pull requests across all repositories in a GitHub organization',
       {
-        organization: z.string().describe("The GitHub organization name"),
+        organization: z.string().describe('The GitHub organization name'),
         query: z.string().describe("Search query (e.g., 'bug', 'feature', 'urgent', author:username)"),
-        state: z.enum(["open", "closed", "all"]).optional().default("all").describe("Filter by state"),
-        limit: z.number().optional().default(50).describe("Maximum number of results to return"),
+        state: z.enum(['open', 'closed', 'all']).optional().default('all').describe('Filter by state'),
+        limit: z.number().optional().default(50).describe('Maximum number of results to return'),
       },
       async ({ organization, query, state, limit }) => {
         try {
@@ -233,7 +233,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               labels: issue.labels.map((l) => l.name),
               assignees: issue.assignees.map((a) => a.login),
               url: issue.html_url,
-              repository: issue.html_url.split("/").slice(-4, -2).join("/"),
+              repository: issue.html_url.split('/').slice(-4, -2).join('/'),
             })),
             pull_requests: limitedPRs.map((pr) => ({
               number: pr.number,
@@ -247,16 +247,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               head_branch: pr.head.ref,
               base_branch: pr.base.ref,
               url: pr.html_url,
-              repository: pr.html_url.split("/").slice(-4, -2).join("/"),
+              repository: pr.html_url.split('/').slice(-4, -2).join('/'),
             })),
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -264,15 +264,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get detailed information about a specific repository
     this.server.tool(
-      "getRepositoryDetails",
-      "Get detailed information about a specific repository including recent commits, issues, and pull requests",
+      'getRepositoryDetails',
+      'Get detailed information about a specific repository including recent commits, issues, and pull requests',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        includeCommits: z.boolean().optional().default(true).describe("Include recent commits"),
-        includeIssues: z.boolean().optional().default(true).describe("Include recent issues"),
-        includePRs: z.boolean().optional().default(true).describe("Include recent pull requests"),
-        days: z.number().optional().default(30).describe("Number of days to look back for activity"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        includeCommits: z.boolean().optional().default(true).describe('Include recent commits'),
+        includeIssues: z.boolean().optional().default(true).describe('Include recent issues'),
+        includePRs: z.boolean().optional().default(true).describe('Include recent pull requests'),
+        days: z.number().optional().default(30).describe('Number of days to look back for activity'),
       },
       async ({ owner, repo, includeCommits, includeIssues, includePRs, days }) => {
         try {
@@ -285,8 +285,8 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           // Get activity data in parallel
           const [commits, issues, prs, contributors] = await Promise.all([
             includeCommits ? githubApi.getRecentCommits(owner, repo, sinceDate) : [],
-            includeIssues ? githubApi.getRepositoryIssues(owner, repo, "all", sinceDate) : [],
-            includePRs ? githubApi.getRepositoryPullRequests(owner, repo, "all") : [],
+            includeIssues ? githubApi.getRepositoryIssues(owner, repo, 'all', sinceDate) : [],
+            includePRs ? githubApi.getRepositoryPullRequests(owner, repo, 'all') : [],
             githubApi.getContributors(owner, repo),
           ]);
 
@@ -315,7 +315,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               sha: commit.sha.substring(0, 7),
               author: commit.commit.author.name,
               date: commit.commit.author.date,
-              message: commit.commit.message.split("\n")[0],
+              message: commit.commit.message.split('\n')[0],
               url: commit.html_url,
             })),
             recent_issues: actualIssues.slice(0, 10).map((issue) => ({
@@ -353,11 +353,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -365,16 +365,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get detailed commit history for a repository
     this.server.tool(
-      "getCommitHistory",
-      "Get detailed commit history for a specific repository with filtering options",
+      'getCommitHistory',
+      'Get detailed commit history for a specific repository with filtering options',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        since: z.string().optional().describe("Only show commits after this date (ISO 8601 format)"),
-        until: z.string().optional().describe("Only show commits before this date (ISO 8601 format)"),
-        branch: z.string().optional().describe("Branch to get commits from (defaults to default branch)"),
-        author: z.string().optional().describe("Filter commits by author username or email"),
-        limit: z.number().optional().default(50).describe("Maximum number of commits to return"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        since: z.string().optional().describe('Only show commits after this date (ISO 8601 format)'),
+        until: z.string().optional().describe('Only show commits before this date (ISO 8601 format)'),
+        branch: z.string().optional().describe('Branch to get commits from (defaults to default branch)'),
+        author: z.string().optional().describe('Filter commits by author username or email'),
+        limit: z.number().optional().default(50).describe('Maximum number of commits to return'),
       },
       async ({ owner, repo, since, until, branch, author, limit }) => {
         try {
@@ -402,7 +402,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           const result = {
             repository: `${owner}/${repo}`,
-            branch: branch || "default",
+            branch: branch || 'default',
             filters: {
               since,
               until,
@@ -431,11 +431,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -443,12 +443,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get contributor statistics for a repository
     this.server.tool(
-      "getContributorStats",
-      "Get detailed contributor statistics for a specific repository",
+      'getContributorStats',
+      'Get detailed contributor statistics for a specific repository',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        limit: z.number().optional().default(50).describe("Maximum number of contributors to return"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        limit: z.number().optional().default(50).describe('Maximum number of contributors to return'),
       },
       async ({ owner, repo, limit }) => {
         try {
@@ -486,11 +486,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -498,12 +498,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // List organization projects (GitHub Projects v2)
     this.server.tool(
-      "listOrganizationProjects",
-      "List all GitHub Projects v2 for a specific organization",
+      'listOrganizationProjects',
+      'List all GitHub Projects v2 for a specific organization',
       {
-        organization: z.string().describe("The GitHub organization name"),
-        includePrivate: z.boolean().optional().default(true).describe("Include private projects"),
-        limit: z.number().optional().default(50).describe("Maximum number of projects to return"),
+        organization: z.string().describe('The GitHub organization name'),
+        includePrivate: z.boolean().optional().default(true).describe('Include private projects'),
+        limit: z.number().optional().default(50).describe('Maximum number of projects to return'),
       },
       async ({ organization, includePrivate, limit }) => {
         try {
@@ -512,7 +512,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           // Filter by visibility if needed
           let filteredProjects = projects;
           if (!includePrivate) {
-            filteredProjects = projects.filter((project) => project.visibility === "PUBLIC");
+            filteredProjects = projects.filter((project) => project.visibility === 'PUBLIC');
           }
 
           // Limit results
@@ -537,11 +537,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -549,12 +549,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get detailed project information including all tasks
     this.server.tool(
-      "getProjectBoardDetails",
-      "Get detailed information about a GitHub Projects v2 board including all tasks, fields, and status",
+      'getProjectBoardDetails',
+      'Get detailed information about a GitHub Projects v2 board including all tasks, fields, and status',
       {
-        includeFields: z.boolean().optional().default(true).describe("Include custom field information"),
-        includeItems: z.boolean().optional().default(true).describe("Include all project items (issues, PRs, draft issues)"),
-        limit: z.number().optional().default(100).describe("Maximum number of items to return"),
+        includeFields: z.boolean().optional().default(true).describe('Include custom field information'),
+        includeItems: z.boolean().optional().default(true).describe('Include all project items (issues, PRs, draft issues)'),
+        limit: z.number().optional().default(100).describe('Maximum number of items to return'),
       },
       async ({ includeFields, includeItems, limit }) => {
         try {
@@ -591,7 +591,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                   url: item.content.url,
                   number: item.content.number,
                   state: item.content.state,
-                  body: item.content.body ? item.content.body.substring(0, 500) + (item.content.body.length > 500 ? "..." : "") : null,
+                  body: item.content.body ? item.content.body.substring(0, 500) + (item.content.body.length > 500 ? '...' : '') : null,
                   author: item.content.author,
                   assignees: item.content.assignees,
                   labels: item.content.labels,
@@ -608,11 +608,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -620,10 +620,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Update project item fields
     this.server.tool(
-      "updateProjectBoardItem",
-      "Update custom field values for an item in a GitHub Projects v2 board (status, start time, end time, etc). Note: Built-in fields like Title, Assignees, Labels cannot be updated through this tool.",
+      'updateProjectBoardItem',
+      'Update custom field values for an item in a GitHub Projects v2 board (status, start time, end time, etc). Note: Built-in fields like Title, Assignees, Labels cannot be updated through this tool.',
       {
-        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
+        itemId: z.string().describe('The project item ID (can be obtained from getProjectBoardDetails)'),
         fieldName: z
           .string()
           .describe(
@@ -631,16 +631,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           ),
         value: z
           .union([
-            z.string().describe("Text value or status name"),
-            z.number().describe("Numeric value"),
-            z.enum(PROJECT_STATUSES).describe("For Status field, use one of the predefined statuses"),
+            z.string().describe('Text value or status name'),
+            z.number().describe('Numeric value'),
+            z.enum(PROJECT_STATUSES).describe('For Status field, use one of the predefined statuses'),
             z
               .object({
-                optionName: z.string().describe("For single-select fields, the name of the option to select"),
+                optionName: z.string().describe('For single-select fields, the name of the option to select'),
               })
-              .describe("Object format for single-select fields"),
+              .describe('Object format for single-select fields'),
           ])
-          .describe("The new value for the field. For Status field, use one of: " + PROJECT_STATUSES.join(", ")),
+          .describe('The new value for the field. For Status field, use one of: ' + PROJECT_STATUSES.join(', ')),
       },
       async (params) => {
         const projectId = PROJECT_BOARD_ID;
@@ -662,7 +662,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           const projectDetails = await githubApi.getProjectDetails(projectId);
 
           // Check for built-in fields that cannot be updated via updateProjectV2ItemFieldValue
-          const readOnlyFields = ["title", "assignees", "labels", "repository", "milestone"];
+          const readOnlyFields = ['title', 'assignees', 'labels', 'repository', 'milestone'];
           if (readOnlyFields.includes(fieldName.toLowerCase())) {
             throw new Error(`Field '${fieldName}' is a built-in field that cannot be updated. Only custom project fields can be modified.`);
           }
@@ -672,7 +672,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           if (!field) {
             // List available fields for better error message
-            const availableFields = projectDetails.fields.map((f) => f.name).join(", ");
+            const availableFields = projectDetails.fields.map((f) => f.name).join(', ');
             throw new Error(`Field '${fieldName}' not found in project. Available custom fields: ${availableFields}`);
           }
 
@@ -680,17 +680,17 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           let fieldValue: any = {};
 
           switch (field.dataType) {
-            case "TEXT":
+            case 'TEXT':
               fieldValue.text = String(value);
               break;
-            case "NUMBER":
-              fieldValue.number = typeof value === "number" ? value : parseFloat(String(value));
+            case 'NUMBER':
+              fieldValue.number = typeof value === 'number' ? value : parseFloat(String(value));
               break;
-            case "DATE":
+            case 'DATE':
               fieldValue.date = String(value);
               break;
-            case "SINGLE_SELECT":
-              if (typeof value === "object" && "optionName" in value) {
+            case 'SINGLE_SELECT':
+              if (typeof value === 'object' && 'optionName' in value) {
                 const option = field.options?.find((opt) => opt.name.toLowerCase() === value.optionName.toLowerCase());
                 if (!option) {
                   throw new Error(`Option '${value.optionName}' not found for field '${fieldName}'`);
@@ -724,11 +724,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error updating project item: ${error.message}`, type: "text" }],
+            content: [{ text: `Error updating project item: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -736,12 +736,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Update draft issue title and/or description
     this.server.tool(
-      "updateProjectBoardDraftIssueTitle",
-      "Update the title and/or description of a draft issue in a GitHub Projects v2 board",
+      'updateProjectBoardDraftIssueTitle',
+      'Update the title and/or description of a draft issue in a GitHub Projects v2 board',
       {
-        itemId: z.string().describe("The project item ID of the draft issue (can be obtained from getProjectBoardDetails)"),
-        title: z.string().optional().describe("The new title for the draft issue (leave empty to keep current title)"),
-        body: z.string().optional().describe("The new description/body for the draft issue (leave empty to keep current body)"),
+        itemId: z.string().describe('The project item ID of the draft issue (can be obtained from getProjectBoardDetails)'),
+        title: z.string().optional().describe('The new title for the draft issue (leave empty to keep current title)'),
+        body: z.string().optional().describe('The new description/body for the draft issue (leave empty to keep current body)'),
       },
       async ({ itemId, title, body }) => {
         const projectId = PROJECT_BOARD_ID;
@@ -758,7 +758,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           if (!item) throw new Error(`Project item with ID '${itemId}' not found`);
 
-          if (item.type !== "DRAFT_ISSUE") {
+          if (item.type !== 'DRAFT_ISSUE') {
             throw new Error(
               `Item '${itemId}' is not a draft issue. Only draft issues can be updated this way. For repository issues, update the title/body directly in the repository.`,
             );
@@ -772,20 +772,20 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           const variables: any = { draftIssueId };
 
           if (title !== undefined) {
-            updateFields.push("title: $title");
+            updateFields.push('title: $title');
             variables.title = title;
           }
 
           if (body !== undefined) {
-            updateFields.push("body: $body");
+            updateFields.push('body: $body');
             variables.body = body;
           }
 
           const mutation = `
-            mutation($draftIssueId: ID!${title !== undefined ? ", $title: String!" : ""}${body !== undefined ? ", $body: String" : ""}) {
+            mutation($draftIssueId: ID!${title !== undefined ? ', $title: String!' : ''}${body !== undefined ? ', $body: String' : ''}) {
               updateProjectV2DraftIssue(input: {
                 draftIssueId: $draftIssueId,
-                ${updateFields.join(",\n                ")}
+                ${updateFields.join(',\n                ')}
               }) {
                 draftIssue {
                   id
@@ -809,7 +809,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           const updatedFields: string[] = [];
           if (title !== undefined)
             updatedFields.push(`title: '${item.content.title}' → '${response.updateProjectV2DraftIssue.draftIssue.title}'`);
-          if (body !== undefined) updatedFields.push(`body: ${item.content.body ? "updated" : "added"}`);
+          if (body !== undefined) updatedFields.push(`body: ${item.content.body ? 'updated' : 'added'}`);
 
           const result = {
             projectItemId: itemId,
@@ -830,15 +830,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                     }
                   : null,
             },
-            message: `Draft issue updated successfully: ${updatedFields.join(", ")}`,
+            message: `Draft issue updated successfully: ${updatedFields.join(', ')}`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error updating draft issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error updating draft issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -846,15 +846,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Create a draft issue in a project
     this.server.tool(
-      "createProjectBoardDraftIssue",
-      "Create a draft issue directly in a GitHub Projects v2 board without creating a repository issue",
+      'createProjectBoardDraftIssue',
+      'Create a draft issue directly in a GitHub Projects v2 board without creating a repository issue',
       {
-        title: z.string().describe("The draft issue title"),
-        body: z.string().optional().describe("The draft issue body/description"),
+        title: z.string().describe('The draft issue title'),
+        body: z.string().optional().describe('The draft issue body/description'),
         initialStatus: z
           .enum(PROJECT_STATUSES)
           .optional()
-          .describe("Initial status column to set. Options: " + PROJECT_STATUSES.join(", ")),
+          .describe('Initial status column to set. Options: ' + PROJECT_STATUSES.join(', ')),
       },
       async ({ title, body, initialStatus }) => {
         const projectId = PROJECT_BOARD_ID;
@@ -880,7 +880,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             draftIssue: {
               title,
               body: body || null,
-              type: "DRAFT_ISSUE",
+              type: 'DRAFT_ISSUE',
             },
             statusUpdate,
             message: `Draft issue created successfully${
@@ -888,16 +888,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 ? ` with status '${statusUpdate.value}'`
                 : statusUpdate?.error
                   ? ` (status update failed: ${statusUpdate.error})`
-                  : ""
+                  : ''
             }`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error creating draft issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error creating draft issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -939,10 +939,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get EFP statistics from Dune Analytics
     this.server.tool(
-      "getEFPDuneStatistics",
-      "Fetch EFP (Ethereum Follow Protocol) statistics and analytics from Dune Analytics dashboard",
+      'getEFPDuneStatistics',
+      'Fetch EFP (Ethereum Follow Protocol) statistics and analytics from Dune Analytics dashboard',
       {
-        searchQuery: z.string().optional().describe("Search for a specific Dune query by name (leave blank to get all queries)"),
+        searchQuery: z.string().optional().describe('Search for a specific Dune query by name (leave blank to get all queries)'),
       },
       async ({ searchQuery }: { searchQuery?: string }) => {
         try {
@@ -953,14 +953,14 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 {
                   text: JSON.stringify(
                     {
-                      error: "Dune API key not configured",
-                      message: "DUNE_API_KEY environment variable is required but not set",
-                      setup_instructions: "Add DUNE_API_KEY to your wrangler.jsonc vars section",
+                      error: 'Dune API key not configured',
+                      message: 'DUNE_API_KEY environment variable is required but not set',
+                      setup_instructions: 'Add DUNE_API_KEY to your wrangler.jsonc vars section',
                     },
                     null,
                     2,
                   ),
-                  type: "text",
+                  type: 'text',
                 },
               ],
             };
@@ -977,13 +977,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 {
                   text: JSON.stringify(
                     {
-                      message: searchQuery ? `No queries found matching: "${searchQuery}"` : "No queries available",
+                      message: searchQuery ? `No queries found matching: "${searchQuery}"` : 'No queries available',
                       available_queries: queries.map((q) => q.name),
                     },
                     null,
                     2,
                   ),
-                  type: "text",
+                  type: 'text',
                 },
               ],
             };
@@ -994,9 +994,9 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             filteredQueries.map(async (query) => {
               try {
                 const resultsResponse = await fetch(`https://api.dune.com/api/v1/query/${query.queryId}/results?limit=1000`, {
-                  method: "GET",
+                  method: 'GET',
                   headers: {
-                    "X-Dune-API-Key": duneApiKey,
+                    'X-Dune-API-Key': duneApiKey,
                   },
                 });
 
@@ -1005,7 +1005,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                   return {
                     query_name: query.name,
                     query_id: query.queryId,
-                    status: "error",
+                    status: 'error',
                     error: `HTTP ${resultsResponse.status}`,
                     details: errorText,
                   };
@@ -1016,14 +1016,14 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 return {
                   query_name: query.name,
                   query_id: query.queryId,
-                  status: "success",
+                  status: 'success',
                   data: data.result || data,
                 };
               } catch (error) {
                 return {
                   query_name: query.name,
                   query_id: query.queryId,
-                  status: "error",
+                  status: 'error',
                   error: error instanceof Error ? error.message : String(error),
                 };
               }
@@ -1032,24 +1032,24 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
           // Process results and separate successful from failed queries
           const processedResults = results.map((result, index) => {
-            if (result.status === "fulfilled") {
+            if (result.status === 'fulfilled') {
               return result.value;
             } else {
               return {
                 query_name: filteredQueries[index].name,
                 query_id: filteredQueries[index].queryId,
-                status: "error",
+                status: 'error',
                 error: result.reason instanceof Error ? result.reason.message : String(result.reason),
               };
             }
           });
 
-          const successfulQueries = processedResults.filter((r) => r.status === "success");
-          const failedQueries = processedResults.filter((r) => r.status === "error");
+          const successfulQueries = processedResults.filter((r) => r.status === 'success');
+          const failedQueries = processedResults.filter((r) => r.status === 'error');
 
           const response = {
-            source: "Dune Analytics",
-            dashboard_url: "https://dune.com/throw_efp/efp",
+            source: 'Dune Analytics',
+            dashboard_url: 'https://dune.com/throw_efp/efp',
             total_queries_requested: filteredQueries.length,
             successful_queries: successfulQueries.length,
             failed_queries: failedQueries.length,
@@ -1057,11 +1057,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(response, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(response, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error fetching EFP Dune statistics: ${error.message}`, type: "text" }],
+            content: [{ text: `Error fetching EFP Dune statistics: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1069,11 +1069,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Quick financial report tool (no OCR)
     this.server.tool(
-      "getFinancialReportQuick",
-      "Get pre-cached financial report data (fast, no OCR required)",
+      'getFinancialReportQuick',
+      'Get pre-cached financial report data (fast, no OCR required)',
       {
-        quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]).describe("The quarter (Q1, Q2, Q3, or Q4)"),
-        year: z.number().min(2024).max(2025).describe("The year (2024 or 2025)"),
+        quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']).describe('The quarter (Q1, Q2, Q3, or Q4)'),
+        year: z.number().min(2024).max(2025).describe('The year (2024 or 2025)'),
       },
       async ({ quarter, year }) => {
         try {
@@ -1085,13 +1085,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 {
                   text: JSON.stringify(
                     {
-                      error: "Report not found",
+                      error: 'Report not found',
                       message: `No financial report found for ${year} ${quarter}`,
                     },
                     null,
                     2,
                   ),
-                  type: "text",
+                  type: 'text',
                 },
               ],
             };
@@ -1103,23 +1103,23 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             image_urls: report.imageUrls,
             has_cached_data: !!report.extractedData,
             message: report.extractedData
-              ? "Pre-cached data available"
-              : "No cached data - use getFinancialReport with forceRefresh=false for OCR extraction",
+              ? 'Pre-cached data available'
+              : 'No cached data - use getFinancialReport with forceRefresh=false for OCR extraction',
             cached_data: report.extractedData || null,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error: ${error.message}`, type: "text" }],
+            content: [{ text: `Error: ${error.message}`, type: 'text' }],
           };
         }
       },
     );
 
-    this.server.tool("listFinancialReports", "List all available financial reports by quarter", {}, async () => {
+    this.server.tool('listFinancialReports', 'List all available financial reports by quarter', {}, async () => {
       try {
         const reports = await financialReportsService.getAvailableReports();
 
@@ -1140,23 +1140,23 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         };
 
         return {
-          content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
         };
       } catch (error: any) {
         return {
-          content: [{ text: `Error listing financial reports: ${error.message}`, type: "text" }],
+          content: [{ text: `Error listing financial reports: ${error.message}`, type: 'text' }],
         };
       }
     });
 
     // Get specific financial report
     this.server.tool(
-      "getFinancialReport",
-      "Extract and retrieve financial data from a specific quarterly report",
+      'getFinancialReport',
+      'Extract and retrieve financial data from a specific quarterly report',
       {
-        quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]).describe("The quarter (Q1, Q2, Q3, or Q4)"),
-        year: z.number().min(2024).max(2025).describe("The year (2024 or 2025)"),
-        forceRefresh: z.boolean().optional().default(false).describe("Force re-extraction of data from images"),
+        quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']).describe('The quarter (Q1, Q2, Q3, or Q4)'),
+        year: z.number().min(2024).max(2025).describe('The year (2024 or 2025)'),
+        forceRefresh: z.boolean().optional().default(false).describe('Force re-extraction of data from images'),
       },
       async ({ quarter, year, forceRefresh }) => {
         try {
@@ -1168,13 +1168,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 {
                   text: JSON.stringify(
                     {
-                      error: "Report not found",
+                      error: 'Report not found',
                       message: `No financial report found for ${year} ${quarter}`,
                     },
                     null,
                     2,
                   ),
-                  type: "text",
+                  type: 'text',
                 },
               ],
             };
@@ -1206,35 +1206,35 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                   additional_metrics: report!.extractedData.customMetrics,
                 }
               : null,
-            raw_text_preview: report!.extractedData ? report!.extractedData.rawText : "No data extracted yet",
+            raw_text_preview: report!.extractedData ? report!.extractedData.rawText : 'No data extracted yet',
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error retrieving financial report: ${error.message}`, type: "text" }],
+            content: [{ text: `Error retrieving financial report: ${error.message}`, type: 'text' }],
           };
         }
       },
     );
 
     this.server.tool(
-      "compareFinancialReports",
-      "Compare financial metrics across multiple quarters",
+      'compareFinancialReports',
+      'Compare financial metrics across multiple quarters',
       {
         quarters: z
           .array(
             z.object({
-              quarter: z.enum(["Q1", "Q2", "Q3", "Q4"]),
+              quarter: z.enum(['Q1', 'Q2', 'Q3', 'Q4']),
               year: z.number().min(2024).max(2025),
             }),
           )
           .min(2)
           .max(5)
-          .describe("Array of quarters to compare (2-5 quarters)"),
-        metrics: z.array(z.string()).optional().describe("Specific metrics to compare (leave empty for all)"),
+          .describe('Array of quarters to compare (2-5 quarters)'),
+        metrics: z.array(z.string()).optional().describe('Specific metrics to compare (leave empty for all)'),
       },
       async ({ quarters, metrics }) => {
         try {
@@ -1254,14 +1254,14 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 {
                   text: JSON.stringify(
                     {
-                      error: "No valid reports found",
-                      message: "Could not find or extract data from any of the specified quarters",
+                      error: 'No valid reports found',
+                      message: 'Could not find or extract data from any of the specified quarters',
                       requested_quarters: quarters,
                     },
                     null,
                     2,
                   ),
-                  type: "text",
+                  type: 'text',
                 },
               ],
             };
@@ -1271,7 +1271,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           const metricsToCompare =
             metrics && metrics.length > 0
               ? metrics
-              : ["revenue", "expenses", "netIncome", "assets", "eth_value", "ens_value", "usdc_holdings"];
+              : ['revenue', 'expenses', 'netIncome', 'assets', 'eth_value', 'ens_value', 'usdc_holdings'];
 
           // Build comparison data
           const comparison: any = {
@@ -1286,7 +1286,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               // Standard metrics
               Object.keys(report.extractedData).forEach((key) => {
                 // @ts-ignore
-                if (key !== "rawText" && key !== "customMetrics" && report.extractedData![key as keyof ExtractedFinancialData]) {
+                if (key !== 'rawText' && key !== 'customMetrics' && report.extractedData![key as keyof ExtractedFinancialData]) {
                   comparison.available_metrics.add(key);
                 }
               });
@@ -1306,7 +1306,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
               if (report?.extractedData) {
                 // Check standard metrics
-                if (metric in report.extractedData && metric !== "customMetrics" && metric !== "rawText") {
+                if (metric in report.extractedData && metric !== 'customMetrics' && metric !== 'rawText') {
                   // @ts-ignore
                   value = report.extractedData[metric as keyof ExtractedFinancialData];
                 }
@@ -1320,7 +1320,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 period: `${quarter.year} ${quarter.quarter}`,
                 value: value,
                 formatted:
-                  value !== null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A",
+                  value !== null ? `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A',
               };
             });
           }
@@ -1340,7 +1340,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 absolute_change: lastValue - firstValue,
                 percentage_change: firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : null,
                 period: `${validReports[0].quarter.year} ${validReports[0].quarter.quarter} to ${validReports[validReports.length - 1].quarter.year} ${validReports[validReports.length - 1].quarter.quarter}`,
-                trend: lastValue > firstValue ? "increasing" : lastValue < firstValue ? "decreasing" : "stable",
+                trend: lastValue > firstValue ? 'increasing' : lastValue < firstValue ? 'decreasing' : 'stable',
               };
             }
           }
@@ -1356,11 +1356,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(comparison, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(comparison, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error comparing financial reports: ${error.message}`, type: "text" }],
+            content: [{ text: `Error comparing financial reports: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1370,17 +1370,17 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Create a new GitHub issue
     this.server.tool(
-      "createGitHubIssue",
-      "Create a new issue in a GitHub repository with full support for assignees, labels, and milestones",
+      'createGitHubIssue',
+      'Create a new issue in a GitHub repository with full support for assignees, labels, and milestones',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        title: z.string().describe("The issue title"),
-        body: z.string().optional().describe("The issue description/body in markdown format"),
-        assignees: z.array(z.string()).optional().describe("Array of GitHub usernames to assign to the issue"),
-        labels: z.array(z.string()).optional().describe("Array of label names to apply to the issue"),
-        milestone: z.number().optional().describe("Milestone number to assign to the issue"),
-        addToProject: z.boolean().optional().default(false).describe("Whether to add the issue to the default project board"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        title: z.string().describe('The issue title'),
+        body: z.string().optional().describe('The issue description/body in markdown format'),
+        assignees: z.array(z.string()).optional().describe('Array of GitHub usernames to assign to the issue'),
+        labels: z.array(z.string()).optional().describe('Array of label names to apply to the issue'),
+        milestone: z.number().optional().describe('Milestone number to assign to the issue'),
+        addToProject: z.boolean().optional().default(false).describe('Whether to add the issue to the default project board'),
       },
       async ({ owner, repo, title, body, assignees, labels, milestone, addToProject }) => {
         try {
@@ -1410,18 +1410,18 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               ? {
                   projectId: PROJECT_BOARD_ID,
                   itemId: projectItemId,
-                  status: projectItemId ? "added" : "failed to add",
+                  status: projectItemId ? 'added' : 'failed to add',
                 }
               : null,
-            message: `Issue #${issue.number} created successfully${addToProject && projectItemId ? " and added to project board" : ""}`,
+            message: `Issue #${issue.number} created successfully${addToProject && projectItemId ? ' and added to project board' : ''}`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error creating issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error creating issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1429,13 +1429,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Comment on a GitHub issue
     this.server.tool(
-      "commentOnGitHubIssue",
-      "Add a comment to an existing GitHub issue",
+      'commentOnGitHubIssue',
+      'Add a comment to an existing GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to comment on"),
-        body: z.string().describe("The comment body in markdown format"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to comment on'),
+        body: z.string().describe('The comment body in markdown format'),
       },
       async ({ owner, repo, issueNumber, body }) => {
         try {
@@ -1454,11 +1454,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error commenting on issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error commenting on issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1466,13 +1466,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Update issue assignees
     this.server.tool(
-      "updateIssueAssignees",
-      "Update the assignees for a GitHub issue",
+      'updateIssueAssignees',
+      'Update the assignees for a GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to update"),
-        assignees: z.array(z.string()).describe("Array of GitHub usernames to assign (replaces existing assignees)"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to update'),
+        assignees: z.array(z.string()).describe('Array of GitHub usernames to assign (replaces existing assignees)'),
       },
       async ({ owner, repo, issueNumber, assignees }) => {
         try {
@@ -1488,11 +1488,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error updating assignees: ${error.message}`, type: "text" }],
+            content: [{ text: `Error updating assignees: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1500,13 +1500,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Update issue labels
     this.server.tool(
-      "updateIssueLabels",
-      "Update the labels for a GitHub issue",
+      'updateIssueLabels',
+      'Update the labels for a GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to update"),
-        labels: z.array(z.string()).describe("Array of label names to apply (replaces existing labels)"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to update'),
+        labels: z.array(z.string()).describe('Array of label names to apply (replaces existing labels)'),
       },
       async ({ owner, repo, issueNumber, labels }) => {
         try {
@@ -1522,11 +1522,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error updating labels: ${error.message}`, type: "text" }],
+            content: [{ text: `Error updating labels: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1534,13 +1534,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Close a GitHub issue
     this.server.tool(
-      "closeIssue",
-      "Close a GitHub issue with an optional reason",
+      'closeIssue',
+      'Close a GitHub issue with an optional reason',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to close"),
-        reason: z.enum(["COMPLETED", "NOT_PLANNED"]).optional().default("COMPLETED").describe("Reason for closing the issue"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to close'),
+        reason: z.enum(['COMPLETED', 'NOT_PLANNED']).optional().default('COMPLETED').describe('Reason for closing the issue'),
       },
       async ({ owner, repo, issueNumber, reason }) => {
         try {
@@ -1556,11 +1556,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error closing issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error closing issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1568,12 +1568,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Reopen a GitHub issue
     this.server.tool(
-      "reopenIssue",
-      "Reopen a closed GitHub issue",
+      'reopenIssue',
+      'Reopen a closed GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to reopen"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to reopen'),
       },
       async ({ owner, repo, issueNumber }) => {
         try {
@@ -1588,11 +1588,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error reopening issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error reopening issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1600,22 +1600,22 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Update issue title and/or body
     this.server.tool(
-      "updateIssue",
-      "Update the title and/or body of a GitHub issue",
+      'updateIssue',
+      'Update the title and/or body of a GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to update"),
-        title: z.string().optional().describe("New title for the issue (leave empty to keep current title)"),
-        body: z.string().optional().describe("New body for the issue (leave empty to keep current body)"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to update'),
+        title: z.string().optional().describe('New title for the issue (leave empty to keep current title)'),
+        body: z.string().optional().describe('New body for the issue (leave empty to keep current body)'),
       },
       async ({ owner, repo, issueNumber, title, body }) => {
         try {
           await githubApi.updateIssue(owner, repo, issueNumber, title, body);
 
           const updates: string[] = [];
-          if (title) updates.push("title");
-          if (body !== undefined) updates.push("body");
+          if (title) updates.push('title');
+          if (body !== undefined) updates.push('body');
 
           const result = {
             issue: {
@@ -1623,15 +1623,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
               repository: `${owner}/${repo}`,
             },
             updated_fields: updates,
-            message: `Issue #${issueNumber} updated successfully (${updates.join(", ")})`,
+            message: `Issue #${issueNumber} updated successfully (${updates.join(', ')})`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error updating issue: ${error.message}`, type: "text" }],
+            content: [{ text: `Error updating issue: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1639,12 +1639,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get issue details
     this.server.tool(
-      "getIssueDetails",
-      "Get detailed information about a specific GitHub issue",
+      'getIssueDetails',
+      'Get detailed information about a specific GitHub issue',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue number to get details for"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue number to get details for'),
       },
       async ({ owner, repo, issueNumber }) => {
         try {
@@ -1659,11 +1659,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error getting issue details: ${error.message}`, type: "text" }],
+            content: [{ text: `Error getting issue details: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1671,16 +1671,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Add existing issue to project board
     this.server.tool(
-      "addIssueToProject",
-      "Add an existing GitHub issue or pull request to the project board",
+      'addIssueToProject',
+      'Add an existing GitHub issue or pull request to the project board',
       {
-        owner: z.string().describe("The repository owner (username or organization)"),
-        repo: z.string().describe("The repository name"),
-        issueNumber: z.number().describe("The issue or pull request number to add"),
+        owner: z.string().describe('The repository owner (username or organization)'),
+        repo: z.string().describe('The repository name'),
+        issueNumber: z.number().describe('The issue or pull request number to add'),
         initialStatus: z
           .enum(PROJECT_STATUSES)
           .optional()
-          .describe("Initial status to set for the item. Options: " + PROJECT_STATUSES.join(", ")),
+          .describe('Initial status to set for the item. Options: ' + PROJECT_STATUSES.join(', ')),
       },
       async ({ owner, repo, issueNumber, initialStatus }) => {
         try {
@@ -1714,16 +1714,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
                 ? ` with status '${statusUpdate.value}'`
                 : statusUpdate?.error
                   ? ` (status update failed: ${statusUpdate.error})`
-                  : ""
+                  : ''
             }`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error adding issue to project: ${error.message}`, type: "text" }],
+            content: [{ text: `Error adding issue to project: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -1733,17 +1733,17 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Create a new pull request
     this.server.tool(
-      "createPullRequest",
-      "Create a new pull request in a GitHub repository",
+      'createPullRequest',
+      'Create a new pull request in a GitHub repository',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        title: z.string().describe("Pull request title"),
-        head: z.string().describe("The name of the branch where your changes are implemented (source branch)"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        title: z.string().describe('Pull request title'),
+        head: z.string().describe('The name of the branch where your changes are implemented (source branch)'),
         base: z.string().describe("The name of the branch you want the changes pulled into (target branch, usually 'main' or 'master')"),
-        body: z.string().optional().describe("Pull request description in markdown format"),
-        draft: z.boolean().optional().default(false).describe("Create as a draft pull request"),
-        maintainerCanModify: z.boolean().optional().default(true).describe("Allow maintainers to modify the pull request"),
+        body: z.string().optional().describe('Pull request description in markdown format'),
+        draft: z.boolean().optional().default(false).describe('Create as a draft pull request'),
+        maintainerCanModify: z.boolean().optional().default(true).describe('Allow maintainers to modify the pull request'),
       },
       async ({ owner, repo, title, head, base, body, draft, maintainerCanModify }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
@@ -1754,7 +1754,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: JSON.stringify(
                   {
                     pull_request: {
@@ -1780,7 +1780,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error creating pull request: ${error.message}`,
               },
             ],
@@ -1791,13 +1791,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Comment on a pull request
     this.server.tool(
-      "commentOnPullRequest",
-      "Add a comment to an existing GitHub pull request",
+      'commentOnPullRequest',
+      'Add a comment to an existing GitHub pull request',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        prNumber: z.number().describe("Pull request number to comment on"),
-        body: z.string().describe("Comment body in markdown format"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number to comment on'),
+        body: z.string().describe('Comment body in markdown format'),
       },
       async ({ owner, repo, prNumber, body }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
@@ -1808,7 +1808,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: JSON.stringify(
                   {
                     comment: {
@@ -1831,7 +1831,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error commenting on pull request: ${error.message}`,
               },
             ],
@@ -1842,12 +1842,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get pull request details
     this.server.tool(
-      "getPullRequestDetails",
-      "Get detailed information about a specific GitHub pull request",
+      'getPullRequestDetails',
+      'Get detailed information about a specific GitHub pull request',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        prNumber: z.number().describe("Pull request number to get details for"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number to get details for'),
       },
       async ({ owner, repo, prNumber }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
@@ -1858,7 +1858,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: JSON.stringify(
                   {
                     pull_request: {
@@ -1893,7 +1893,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error getting pull request details: ${error.message}`,
               },
             ],
@@ -1906,38 +1906,42 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get repository file contents
     this.server.tool(
-      "getRepositoryFile",
-      "Read the contents of a specific file from a GitHub repository",
+      'getRepositoryFile',
+      'Read the contents of a specific file from a GitHub repository',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        path: z.string().describe("File path within the repository"),
-        branch: z.string().optional().describe("Branch name to read from (defaults to default branch)"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().describe('File path within the repository'),
+        branch: z.string().optional().describe('Branch name to read from (defaults to default branch)'),
       },
       async ({ owner, repo, path, branch }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const file = await githubApi.getRepositoryFile(owner, repo, path, branch);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  file: {
-                    path: file.path,
-                    content: file.content,
-                    encoding: file.encoding,
-                    size: file.size,
-                    sha: file.sha,
-                    type: file.type,
-                    download_url: file.downloadUrl,
-                    repository: `${owner}/${repo}`,
-                    branch: branch || "default",
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    file: {
+                      path: file.path,
+                      content: file.content,
+                      encoding: file.encoding,
+                      size: file.size,
+                      sha: file.sha,
+                      type: file.type,
+                      download_url: file.downloadUrl,
+                      repository: `${owner}/${repo}`,
+                      branch: branch || 'default',
+                    },
+                    message: `File '${path}' retrieved successfully from ${owner}/${repo}`,
                   },
-                  message: `File '${path}' retrieved successfully from ${owner}/${repo}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -1945,7 +1949,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error reading repository file: ${error.message}`,
               },
             ],
@@ -1956,41 +1960,45 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get repository directory tree
     this.server.tool(
-      "getRepositoryTree",
-      "Browse the file and directory structure of a GitHub repository",
+      'getRepositoryTree',
+      'Browse the file and directory structure of a GitHub repository',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        path: z.string().optional().describe("Directory path to browse (defaults to root)"),
-        branch: z.string().optional().describe("Branch name to browse (defaults to default branch)"),
-        recursive: z.boolean().optional().default(false).describe("Include subdirectories recursively"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().optional().describe('Directory path to browse (defaults to root)'),
+        branch: z.string().optional().describe('Branch name to browse (defaults to default branch)'),
+        recursive: z.boolean().optional().default(false).describe('Include subdirectories recursively'),
       },
       async ({ owner, repo, path, branch, recursive }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const tree = await githubApi.getRepositoryTree(owner, repo, path || '', branch, recursive);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  repository: `${owner}/${repo}`,
-                  branch: branch || "default",
-                  path: tree.path,
-                  sha: tree.sha,
-                  total_items: tree.tree.length,
-                  tree: tree.tree.map(item => ({
-                    path: item.path,
-                    type: item.type,
-                    size: item.size,
-                    mode: item.mode,
-                    sha: item.sha.substring(0, 7),
-                    url: item.url,
-                  })),
-                  message: `Directory tree retrieved for '${tree.path || 'root'}' in ${owner}/${repo}`,
-                }, null, 2),
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    repository: `${owner}/${repo}`,
+                    branch: branch || 'default',
+                    path: tree.path,
+                    sha: tree.sha,
+                    total_items: tree.tree.length,
+                    tree: tree.tree.map((item) => ({
+                      path: item.path,
+                      type: item.type,
+                      size: item.size,
+                      mode: item.mode,
+                      sha: item.sha.substring(0, 7),
+                      url: item.url,
+                    })),
+                    message: `Directory tree retrieved for '${tree.path || 'root'}' in ${owner}/${repo}`,
+                  },
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -1998,7 +2006,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error reading repository tree: ${error.message}`,
               },
             ],
@@ -2009,40 +2017,44 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // List all branches in repository
     this.server.tool(
-      "listRepositoryBranches",
-      "List all branches in a GitHub repository with their commit information",
+      'listRepositoryBranches',
+      'List all branches in a GitHub repository with their commit information',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        includeProtected: z.boolean().optional().default(false).describe("Include branch protection status"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        includeProtected: z.boolean().optional().default(false).describe('Include branch protection status'),
       },
       async ({ owner, repo, includeProtected }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const branches = await githubApi.listBranches(owner, repo, includeProtected);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  repository: `${owner}/${repo}`,
-                  total_branches: branches.length,
-                  branches: branches.map(branch => ({
-                    name: branch.name,
-                    sha: branch.sha,
-                    protected: branch.protected,
-                    url: branch.url,
-                    last_commit: {
-                      sha: branch.lastCommit.sha,
-                      message: branch.lastCommit.message,
-                      author: branch.lastCommit.author,
-                      date: branch.lastCommit.date,
-                    },
-                  })),
-                  message: `Found ${branches.length} branches in ${owner}/${repo}`,
-                }, null, 2),
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    repository: `${owner}/${repo}`,
+                    total_branches: branches.length,
+                    branches: branches.map((branch) => ({
+                      name: branch.name,
+                      sha: branch.sha,
+                      protected: branch.protected,
+                      url: branch.url,
+                      last_commit: {
+                        sha: branch.lastCommit.sha,
+                        message: branch.lastCommit.message,
+                        author: branch.lastCommit.author,
+                        date: branch.lastCommit.date,
+                      },
+                    })),
+                    message: `Found ${branches.length} branches in ${owner}/${repo}`,
+                  },
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -2050,7 +2062,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error listing repository branches: ${error.message}`,
               },
             ],
@@ -2061,37 +2073,41 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Get detailed information about a specific branch
     this.server.tool(
-      "getBranchInfo",
-      "Get detailed information about a specific branch including commit status and protection",
+      'getBranchInfo',
+      'Get detailed information about a specific branch including commit status and protection',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        branch: z.string().describe("Branch name to get information for"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().describe('Branch name to get information for'),
       },
       async ({ owner, repo, branch }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const branchInfo = await githubApi.getBranchInfo(owner, repo, branch);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  branch: {
-                    name: branchInfo.name,
-                    sha: branchInfo.sha,
-                    protected: branchInfo.protected,
-                    url: branchInfo.url,
-                    ahead: branchInfo.ahead,
-                    behind: branchInfo.behind,
-                    base_branch: branchInfo.baseBranch,
-                    last_commit: branchInfo.lastCommit,
-                    repository: `${owner}/${repo}`,
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    branch: {
+                      name: branchInfo.name,
+                      sha: branchInfo.sha,
+                      protected: branchInfo.protected,
+                      url: branchInfo.url,
+                      ahead: branchInfo.ahead,
+                      behind: branchInfo.behind,
+                      base_branch: branchInfo.baseBranch,
+                      last_commit: branchInfo.lastCommit,
+                      repository: `${owner}/${repo}`,
+                    },
+                    message: `Branch information retrieved for '${branch}' in ${owner}/${repo}`,
                   },
-                  message: `Branch information retrieved for '${branch}' in ${owner}/${repo}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -2099,7 +2115,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error getting branch information: ${error.message}`,
               },
             ],
@@ -2110,37 +2126,41 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Create a new branch
     this.server.tool(
-      "createBranch",
-      "Create a new branch in a GitHub repository from a base branch",
+      'createBranch',
+      'Create a new branch in a GitHub repository from a base branch',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
         branchName: z.string().describe("Name for the new branch (e.g., 'feature/auth-improvements')"),
-        baseBranch: z.string().optional().default("main").describe("Base branch to create from (defaults to 'main')"),
-        description: z.string().optional().describe("Optional description for the branch"),
+        baseBranch: z.string().optional().default('main').describe("Base branch to create from (defaults to 'main')"),
+        description: z.string().optional().describe('Optional description for the branch'),
       },
       async ({ owner, repo, branchName, baseBranch, description }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const branch = await githubApi.createBranch(owner, repo, branchName, baseBranch, description);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  branch: {
-                    name: branch.name,
-                    sha: branch.sha,
-                    url: branch.url,
-                    ref: branch.ref,
-                    base_branch: branch.baseBranch,
-                    repository: `${owner}/${repo}`,
-                    description: description || null,
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    branch: {
+                      name: branch.name,
+                      sha: branch.sha,
+                      url: branch.url,
+                      ref: branch.ref,
+                      base_branch: branch.baseBranch,
+                      repository: `${owner}/${repo}`,
+                      description: description || null,
+                    },
+                    message: `Branch '${branchName}' created successfully from '${baseBranch}' in ${owner}/${repo}`,
                   },
-                  message: `Branch '${branchName}' created successfully from '${baseBranch}' in ${owner}/${repo}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -2148,7 +2168,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error creating branch: ${error.message}`,
               },
             ],
@@ -2159,48 +2179,56 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Commit code changes to a branch
     this.server.tool(
-      "commitChanges",
-      "Commit multiple file changes to a GitHub repository branch",
+      'commitChanges',
+      'Commit multiple file changes to a GitHub repository branch',
       {
-        owner: z.string().describe("Repository owner (username or organization)"),
-        repo: z.string().describe("Repository name"),
-        branch: z.string().describe("Branch name to commit to (must not be a protected branch)"),
-        message: z.string().describe("Commit message describing the changes"),
-        changes: z.array(z.object({
-          path: z.string().describe("File path within the repository"),
-          content: z.string().describe("New file content"),
-          operation: z.enum(['create', 'update']).describe("Operation type: 'create' for new files, 'update' for existing files"),
-          encoding: z.string().optional().default('utf-8').describe("File encoding (defaults to 'utf-8')"),
-        })).describe("Array of file changes to commit"),
+        owner: z.string().describe('Repository owner (username or organization)'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().describe('Branch name to commit to (must not be a protected branch)'),
+        message: z.string().describe('Commit message describing the changes'),
+        changes: z
+          .array(
+            z.object({
+              path: z.string().describe('File path within the repository'),
+              content: z.string().describe('New file content'),
+              operation: z.enum(['create', 'update']).describe("Operation type: 'create' for new files, 'update' for existing files"),
+              encoding: z.string().optional().default('utf-8').describe("File encoding (defaults to 'utf-8')"),
+            }),
+          )
+          .describe('Array of file changes to commit'),
       },
       async ({ owner, repo, branch, message, changes }) => {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
           const result = await githubApi.commitChanges(owner, repo, branch, message, changes);
-          
+
           return {
             content: [
               {
-                type: "text",
-                text: JSON.stringify({
-                  commit: {
-                    sha: result.commit.sha,
-                    url: result.commit.url,
-                    message: result.commit.message,
-                    author: result.commit.author,
-                    branch: result.branch,
-                    repository: `${owner}/${repo}`,
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    commit: {
+                      sha: result.commit.sha,
+                      url: result.commit.url,
+                      message: result.commit.message,
+                      author: result.commit.author,
+                      branch: result.branch,
+                      repository: `${owner}/${repo}`,
+                    },
+                    changes: {
+                      files_changed: result.filesChanged,
+                      operations: changes.map((c) => ({
+                        path: c.path,
+                        operation: c.operation,
+                      })),
+                    },
+                    message: `Successfully committed ${result.filesChanged} file changes to branch '${branch}' in ${owner}/${repo}`,
                   },
-                  changes: {
-                    files_changed: result.filesChanged,
-                    operations: changes.map(c => ({
-                      path: c.path,
-                      operation: c.operation,
-                    })),
-                  },
-                  message: `Successfully committed ${result.filesChanged} file changes to branch '${branch}' in ${owner}/${repo}`,
-                }, null, 2),
+                  null,
+                  2,
+                ),
               },
             ],
           };
@@ -2208,7 +2236,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           return {
             content: [
               {
-                type: "text",
+                type: 'text',
                 text: `Error committing changes: ${error.message}`,
               },
             ],
@@ -2221,11 +2249,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Assign users to a project board item
     this.server.tool(
-      "assignProjectBoardItem",
-      "Assign users to a project board item (works for both custom assignee fields and underlying GitHub issues)",
+      'assignProjectBoardItem',
+      'Assign users to a project board item (works for both custom assignee fields and underlying GitHub issues)',
       {
-        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
-        usernames: z.array(z.string()).describe("Array of GitHub usernames to assign to the item"),
+        itemId: z.string().describe('The project item ID (can be obtained from getProjectBoardDetails)'),
+        usernames: z.array(z.string()).describe('Array of GitHub usernames to assign to the item'),
       },
       async ({ itemId, usernames }) => {
         const projectId = PROJECT_BOARD_ID;
@@ -2237,15 +2265,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             projectId,
             itemId,
             assignees: usernames,
-            message: `Successfully assigned ${usernames.join(", ")} to project board item`,
+            message: `Successfully assigned ${usernames.join(', ')} to project board item`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error assigning users to project board item: ${error.message}`, type: "text" }],
+            content: [{ text: `Error assigning users to project board item: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -2253,11 +2281,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Remove assignees from a project board item
     this.server.tool(
-      "unassignProjectBoardItem",
-      "Remove specific assignees from a project board item",
+      'unassignProjectBoardItem',
+      'Remove specific assignees from a project board item',
       {
-        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
-        usernames: z.array(z.string()).describe("Array of GitHub usernames to remove from the item"),
+        itemId: z.string().describe('The project item ID (can be obtained from getProjectBoardDetails)'),
+        usernames: z.array(z.string()).describe('Array of GitHub usernames to remove from the item'),
       },
       async ({ itemId, usernames }) => {
         const projectId = PROJECT_BOARD_ID;
@@ -2269,15 +2297,15 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             projectId,
             itemId,
             removedAssignees: usernames,
-            message: `Successfully removed ${usernames.join(", ")} from project board item`,
+            message: `Successfully removed ${usernames.join(', ')} from project board item`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error removing assignees from project board item: ${error.message}`, type: "text" }],
+            content: [{ text: `Error removing assignees from project board item: ${error.message}`, type: 'text' }],
           };
         }
       },
@@ -2285,11 +2313,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
     // Add labels to a project board item
     this.server.tool(
-      "labelProjectBoardItem",
-      "Add labels to a project board item (works for GitHub issues in projects)",
+      'labelProjectBoardItem',
+      'Add labels to a project board item (works for GitHub issues in projects)',
       {
-        itemId: z.string().describe("The project item ID (can be obtained from getProjectBoardDetails)"),
-        labels: z.array(z.string()).describe("Array of label names to apply to the item"),
+        itemId: z.string().describe('The project item ID (can be obtained from getProjectBoardDetails)'),
+        labels: z.array(z.string()).describe('Array of label names to apply to the item'),
       },
       async ({ itemId, labels }) => {
         const projectId = PROJECT_BOARD_ID;
@@ -2301,22 +2329,22 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             projectId,
             itemId,
             labels,
-            message: `Successfully added labels ${labels.join(", ")} to project board item`,
+            message: `Successfully added labels ${labels.join(', ')} to project board item`,
           };
 
           return {
-            content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+            content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
           };
         } catch (error: any) {
           return {
-            content: [{ text: `Error adding labels to project board item: ${error.message}`, type: "text" }],
+            content: [{ text: `Error adding labels to project board item: ${error.message}`, type: 'text' }],
           };
         }
       },
     );
 
     // Get available assignees for the project
-    this.server.tool("getProjectAssignableUsers", "Get a list of users who can be assigned to project board items", {}, async () => {
+    this.server.tool('getProjectAssignableUsers', 'Get a list of users who can be assigned to project board items', {}, async () => {
       const projectId = PROJECT_BOARD_ID;
 
       try {
@@ -2334,337 +2362,22 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         };
 
         return {
-          content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
+          content: [{ text: JSON.stringify(result, null, 2), type: 'text' }],
         };
       } catch (error: any) {
         return {
-          content: [{ text: `Error getting assignable users: ${error.message}`, type: "text" }],
+          content: [{ text: `Error getting assignable users: ${error.message}`, type: 'text' }],
         };
       }
     });
-
-    // ChatGPT Compatibility Tools (Required for ChatGPT MCP Integration)
-
-    // ChatGPT-required search tool
-    // this.server.tool(
-    //   "search",
-    //   "Search across GitHub repositories, issues, PRs, and project items (ChatGPT-compatible)",
-    //   {
-    //     query: z.string().describe("Search query to find relevant records across GitHub"),
-    //   },
-    //   async ({ query }) => {
-    //     try {
-    //       const searchResults: Array<{
-    //         id: string;
-    //         type: string;
-    //         title: string;
-    //         description: string;
-    //         url: string;
-    //       }> = [];
-
-    //       // Determine organization from context or use default
-    //       const organization = "ethereumfollowprotocol"; // Could be made configurable
-
-    //       // Search repositories if query suggests repository search
-    //       if (query.toLowerCase().includes("repo") || query.toLowerCase().includes("repository") || query.length < 20) {
-    //         try {
-    //           const repos = await githubApi.getOrganizationRepositories(organization, true);
-    //           const filtered = repos.filter(
-    //             (repo) =>
-    //               repo.name.toLowerCase().includes(query.toLowerCase()) ||
-    //               (repo.description && repo.description.toLowerCase().includes(query.toLowerCase())),
-    //           );
-
-    //           filtered.slice(0, 10).forEach((repo) => {
-    //             searchResults.push({
-    //               id: `repo:${repo.full_name}`,
-    //               type: "repository",
-    //               title: repo.full_name,
-    //               description: repo.description || "No description available",
-    //               url: repo.html_url,
-    //             });
-    //           });
-    //         } catch (repoError) {
-    //           console.error("Repository search failed:", repoError);
-    //         }
-    //       }
-
-    //       // Search issues and PRs
-    //       try {
-    //         const issuesAndPRs = await githubApi.searchIssuesAndPRs(organization, query, "all");
-
-    //         // Add issues to results
-    //         issuesAndPRs.issues.slice(0, 8).forEach((issue) => {
-    //           const repoPath = issue.html_url.split("/").slice(-4, -2).join("/");
-    //           searchResults.push({
-    //             id: `issue:${repoPath}:${issue.number}`,
-    //             type: "issue",
-    //             title: `#${issue.number}: ${issue.title}`,
-    //             description: `Issue by ${issue.user.login} in ${repoPath}`,
-    //             url: issue.html_url,
-    //           });
-    //         });
-
-    //         // Add pull requests to results
-    //         issuesAndPRs.pull_requests.slice(0, 7).forEach((pr) => {
-    //           const repoPath = pr.html_url.split("/").slice(-4, -2).join("/");
-    //           searchResults.push({
-    //             id: `pr:${repoPath}:${pr.number}`,
-    //             type: "pull_request",
-    //             title: `#${pr.number}: ${pr.title}`,
-    //             description: `PR by ${pr.user.login} in ${repoPath}`,
-    //             url: pr.html_url,
-    //           });
-    //         });
-    //       } catch (searchError) {
-    //         console.error("Issues/PRs search failed:", searchError);
-    //       }
-
-    //       // Search project board items if query suggests project management
-    //       if (query.toLowerCase().includes("project") || query.toLowerCase().includes("task") || query.toLowerCase().includes("board")) {
-    //         try {
-    //           const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
-    //           const filteredItems = projectDetails.items.filter((item) =>
-    //             item.content.title.toLowerCase().includes(query.toLowerCase()),
-    //           );
-
-    //           filteredItems.slice(0, 5).forEach((item) => {
-    //             searchResults.push({
-    //               id: `project-item:${item.id}`,
-    //               type: `project_${item.type.toLowerCase()}`,
-    //               title: item.content.title,
-    //               description: `${item.type} in project board${item.content.assignees?.length ? ` (assigned to ${item.content.assignees.map(a => a.login).join(", ")})` : ""}`,
-    //               url: item.content.url || `https://github.com/orgs/${organization}/projects`,
-    //             });
-    //           });
-    //         } catch (projectError) {
-    //           console.error("Project search failed:", projectError);
-    //         }
-    //       }
-
-    //       const result = {
-    //         query,
-    //         total_results: searchResults.length,
-    //         organization,
-    //         results: searchResults.slice(0, 25), // Limit total results
-    //         message: `Found ${searchResults.length} results for query "${query}"`,
-    //       };
-
-    //       return {
-    //         content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-    //       };
-    //     } catch (error: any) {
-    //       return {
-    //         content: [{ text: `Error searching: ${error.message}`, type: "text" }],
-    //       };
-    //     }
-    //   },
-    // );
-
-    // // ChatGPT-required fetch tool
-    // this.server.tool(
-    //   "fetch",
-    //   "Fetch detailed information for a specific record by ID (ChatGPT-compatible)",
-    //   {
-    //     id: z.string().describe("The ID of the record to fetch (format: type:identifier)"),
-    //   },
-    //   async ({ id }) => {
-    //     try {
-    //       const [type, ...identifierParts] = id.split(":");
-    //       const identifier = identifierParts.join(":");
-
-    //       let result: any;
-
-    //       switch (type) {
-    //         case "repo":
-    //           const [owner, repo] = identifier.split("/");
-    //           if (!owner || !repo) {
-    //             throw new Error("Invalid repository identifier format. Expected: owner/repo");
-    //           }
-
-    //           // Get comprehensive repository details using existing API methods
-    //           const sinceDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    //           // Get repository info using Octokit directly
-    //           const octokit = new Octokit({ auth: this.props.accessToken });
-    //           const repoInfo = await octokit.rest.repos.get({ owner, repo });
-
-    //           // Get activity data in parallel
-    //           const [commits, issues, prs, contributors] = await Promise.all([
-    //             githubApi.getRecentCommits(owner, repo, sinceDate),
-    //             githubApi.getRepositoryIssues(owner, repo, "all", sinceDate),
-    //             githubApi.getRepositoryPullRequests(owner, repo, "all"),
-    //             githubApi.getContributors(owner, repo),
-    //           ]);
-
-    //           // Filter issues vs PRs
-    //           const actualIssues = issues.filter((issue) => !issue.pull_request);
-    //           const recentPRs = prs.filter((pr) => new Date(pr.updated_at) > new Date(sinceDate));
-
-    //           const repoDetails = {
-    //             repository: {
-    //               name: repoInfo.data.name,
-    //               full_name: repoInfo.data.full_name,
-    //               description: repoInfo.data.description,
-    //               language: repoInfo.data.language,
-    //               stars: repoInfo.data.stargazers_count,
-    //               forks: repoInfo.data.forks_count,
-    //               open_issues: repoInfo.data.open_issues_count,
-    //               private: repoInfo.data.private,
-    //               created_at: repoInfo.data.created_at,
-    //               updated_at: repoInfo.data.updated_at,
-    //               pushed_at: repoInfo.data.pushed_at,
-    //               default_branch: repoInfo.data.default_branch,
-    //               url: repoInfo.data.html_url,
-    //             },
-    //             recent_commits: commits.slice(0, 10).map((commit) => ({
-    //               sha: commit.sha.substring(0, 7),
-    //               author: commit.commit.author.name,
-    //               date: commit.commit.author.date,
-    //               message: commit.commit.message.split("\n")[0],
-    //               url: commit.html_url,
-    //             })),
-    //             recent_issues: actualIssues.slice(0, 10).map((issue) => ({
-    //               number: issue.number,
-    //               title: issue.title,
-    //               state: issue.state,
-    //               author: issue.user.login,
-    //               created_at: issue.created_at,
-    //               labels: issue.labels.map((l) => l.name),
-    //               url: issue.html_url,
-    //             })),
-    //             recent_pull_requests: recentPRs.slice(0, 10).map((pr) => ({
-    //               number: pr.number,
-    //               title: pr.title,
-    //               state: pr.state,
-    //               author: pr.user.login,
-    //               created_at: pr.created_at,
-    //               merged: pr.merged,
-    //               draft: pr.draft,
-    //               head_branch: pr.head.ref,
-    //               base_branch: pr.base.ref,
-    //               url: pr.html_url,
-    //             })),
-    //             contributors: contributors.slice(0, 10).map((contributor) => ({
-    //               login: contributor.login,
-    //               contributions: contributor.contributions,
-    //               avatar_url: contributor.avatar_url,
-    //             })),
-    //             statistics: {
-    //               recent_commits: commits.length,
-    //               recent_issues: actualIssues.length,
-    //               recent_prs: recentPRs.length,
-    //               total_contributors: contributors.length,
-    //             },
-    //           };
-
-    //           result = {
-    //             id,
-    //             type: "repository",
-    //             data: repoDetails,
-    //             metadata: {
-    //               fetched_at: new Date().toISOString(),
-    //               source: "github_api",
-    //             },
-    //           };
-    //           break;
-
-    //         case "issue":
-    //           const [issueOwner, issueRepo, issueNumberStr] = identifier.split(":");
-    //           const issueNumber = parseInt(issueNumberStr);
-
-    //           if (!issueOwner || !issueRepo || !issueNumber) {
-    //             throw new Error("Invalid issue identifier format. Expected: owner:repo:number");
-    //           }
-
-    //           const issue = await githubApi.getIssueByNumber(issueOwner, issueRepo, issueNumber);
-    //           result = {
-    //             id,
-    //             type: "issue",
-    //             data: {
-    //               ...issue,
-    //               repository: `${issueOwner}/${issueRepo}`,
-    //             },
-    //             metadata: {
-    //               fetched_at: new Date().toISOString(),
-    //               source: "github_api",
-    //             },
-    //           };
-    //           break;
-
-    //         case "pr":
-    //           const [prOwner, prRepo, prNumberStr] = identifier.split(":");
-    //           const prNumber = parseInt(prNumberStr);
-
-    //           if (!prOwner || !prRepo || !prNumber) {
-    //             throw new Error("Invalid PR identifier format. Expected: owner:repo:number");
-    //           }
-
-    //           // Reuse issue fetcher as PRs are issues in GitHub's API
-    //           const pr = await githubApi.getIssueByNumber(prOwner, prRepo, prNumber);
-    //           result = {
-    //             id,
-    //             type: "pull_request",
-    //             data: {
-    //               ...pr,
-    //               repository: `${prOwner}/${prRepo}`,
-    //             },
-    //             metadata: {
-    //               fetched_at: new Date().toISOString(),
-    //               source: "github_api",
-    //             },
-    //           };
-    //           break;
-
-    //         case "project-item":
-    //           const itemId = identifier;
-    //           const projectDetails = await githubApi.getProjectDetails(PROJECT_BOARD_ID);
-    //           const item = projectDetails.items.find((i) => i.id === itemId);
-
-    //           if (!item) {
-    //             throw new Error(`Project item with ID '${itemId}' not found`);
-    //           }
-
-    //           result = {
-    //             id,
-    //             type: "project_item",
-    //             data: {
-    //               ...item,
-    //               project: {
-    //                 id: PROJECT_BOARD_ID,
-    //                 title: projectDetails.project.title,
-    //                 url: projectDetails.project.url,
-    //               },
-    //             },
-    //             metadata: {
-    //               fetched_at: new Date().toISOString(),
-    //               source: "github_projects_v2",
-    //             },
-    //           };
-    //           break;
-
-    //         default:
-    //           throw new Error(`Unknown record type: ${type}. Supported types: repo, issue, pr, project-item`);
-    //       }
-
-    //       return {
-    //         content: [{ text: JSON.stringify(result, null, 2), type: "text" }],
-    //       };
-    //     } catch (error: any) {
-    //       return {
-    //         content: [{ text: `Error fetching record: ${error.message}`, type: "text" }],
-    //       };
-    //     }
-    //   },
-    // );
   }
 }
 
 export default new OAuthProvider({
-  apiHandler: MyMCP.mount("/sse") as any,
-  apiRoute: "/sse",
-  authorizeEndpoint: "/authorize",
-  clientRegistrationEndpoint: "/register",
+  apiHandler: MyMCP.mount('/sse') as any,
+  apiRoute: '/sse',
+  authorizeEndpoint: '/authorize',
+  clientRegistrationEndpoint: '/register',
   defaultHandler: GitHubHandler as any,
-  tokenEndpoint: "/token",
+  tokenEndpoint: '/token',
 });

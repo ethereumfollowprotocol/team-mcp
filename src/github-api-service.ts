@@ -1,4 +1,4 @@
-import { Octokit } from "octokit";
+import { Octokit } from 'octokit';
 import type {
   GitHubRepository,
   GitHubCommit,
@@ -9,7 +9,7 @@ import type {
   OrganizationSummary,
   GitHubProjectV2,
   GitHubProjectV2Details,
-} from "./types";
+} from './types';
 
 export class GitHubApiService {
   private _octokit: Octokit;
@@ -69,16 +69,16 @@ export class GitHubApiService {
   }
 
   async getOrganizationRepositories(org: string, includePrivate: boolean = true): Promise<GitHubRepository[]> {
-    const cacheKey = this.getCacheKey("getOrganizationRepositories", { org, includePrivate });
+    const cacheKey = this.getCacheKey('getOrganizationRepositories', { org, includePrivate });
     const cached = this.getFromCache<GitHubRepository[]>(cacheKey);
     if (cached) return cached;
 
     try {
       const repos = await this.paginate<GitHubRepository>(this._octokit.rest.repos.listForOrg, {
         org,
-        type: includePrivate ? "all" : "public",
-        sort: "updated",
-        direction: "desc",
+        type: includePrivate ? 'all' : 'public',
+        sort: 'updated',
+        direction: 'desc',
       });
 
       this.setCache(cacheKey, repos);
@@ -89,7 +89,7 @@ export class GitHubApiService {
   }
 
   async getRecentCommits(owner: string, repo: string, since?: string, branch?: string): Promise<GitHubCommit[]> {
-    const cacheKey = this.getCacheKey("getRecentCommits", { owner, repo, since, branch });
+    const cacheKey = this.getCacheKey('getRecentCommits', { owner, repo, since, branch });
     const cached = this.getFromCache<GitHubCommit[]>(cacheKey);
     if (cached) return cached;
 
@@ -117,8 +117,8 @@ export class GitHubApiService {
     }
   }
 
-  async getRepositoryIssues(owner: string, repo: string, state: "open" | "closed" | "all" = "all", since?: string): Promise<GitHubIssue[]> {
-    const cacheKey = this.getCacheKey("getRepositoryIssues", { owner, repo, state, since });
+  async getRepositoryIssues(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'all', since?: string): Promise<GitHubIssue[]> {
+    const cacheKey = this.getCacheKey('getRepositoryIssues', { owner, repo, state, since });
     const cached = this.getFromCache<GitHubIssue[]>(cacheKey);
     if (cached) return cached;
 
@@ -127,8 +127,8 @@ export class GitHubApiService {
         owner,
         repo,
         state,
-        sort: "updated",
-        direction: "desc",
+        sort: 'updated',
+        direction: 'desc',
       };
 
       if (since) params.since = since;
@@ -147,8 +147,8 @@ export class GitHubApiService {
     }
   }
 
-  async getRepositoryPullRequests(owner: string, repo: string, state: "open" | "closed" | "all" = "all"): Promise<GitHubPullRequest[]> {
-    const cacheKey = this.getCacheKey("getRepositoryPullRequests", { owner, repo, state });
+  async getRepositoryPullRequests(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'all'): Promise<GitHubPullRequest[]> {
+    const cacheKey = this.getCacheKey('getRepositoryPullRequests', { owner, repo, state });
     const cached = this.getFromCache<GitHubPullRequest[]>(cacheKey);
     if (cached) return cached;
 
@@ -159,8 +159,8 @@ export class GitHubApiService {
           owner,
           repo,
           state,
-          sort: "updated",
-          direction: "desc",
+          sort: 'updated',
+          direction: 'desc',
         },
         3, // Limit to 3 pages for performance
       );
@@ -174,7 +174,7 @@ export class GitHubApiService {
   }
 
   async getContributors(owner: string, repo: string): Promise<GitHubContributor[]> {
-    const cacheKey = this.getCacheKey("getContributors", { owner, repo });
+    const cacheKey = this.getCacheKey('getContributors', { owner, repo });
     const cached = this.getFromCache<GitHubContributor[]>(cacheKey);
     if (cached) return cached;
 
@@ -201,8 +201,8 @@ export class GitHubApiService {
 
     const [commits, issues, prs, contributors] = await Promise.all([
       this.getRecentCommits(repository.owner.login, repository.name, sinceDate),
-      this.getRepositoryIssues(repository.owner.login, repository.name, "open"),
-      this.getRepositoryPullRequests(repository.owner.login, repository.name, "open"),
+      this.getRepositoryIssues(repository.owner.login, repository.name, 'open'),
+      this.getRepositoryPullRequests(repository.owner.login, repository.name, 'open'),
       this.getContributors(repository.owner.login, repository.name),
     ]);
 
@@ -252,14 +252,14 @@ export class GitHubApiService {
   async searchIssuesAndPRs(
     org: string,
     query: string,
-    state: "open" | "closed" | "all" = "all",
+    state: 'open' | 'closed' | 'all' = 'all',
   ): Promise<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }> {
-    const cacheKey = this.getCacheKey("searchIssuesAndPRs", { org, query, state });
+    const cacheKey = this.getCacheKey('searchIssuesAndPRs', { org, query, state });
     const cached = this.getFromCache<{ issues: GitHubIssue[]; pull_requests: GitHubPullRequest[] }>(cacheKey);
     if (cached) return cached;
 
     try {
-      const searchQuery = `org:${org} ${query} ${state !== "all" ? `state:${state}` : ""}`;
+      const searchQuery = `org:${org} ${query} ${state !== 'all' ? `state:${state}` : ''}`;
 
       const [issuesResponse, prsResponse] = await Promise.all([
         this._octokit.rest.search.issuesAndPullRequests({
@@ -286,7 +286,7 @@ export class GitHubApiService {
 
   // GitHub Projects v2 API methods using GraphQL
   async getOrganizationProjects(org: string): Promise<GitHubProjectV2[]> {
-    const cacheKey = this.getCacheKey("getOrganizationProjects", { org });
+    const cacheKey = this.getCacheKey('getOrganizationProjects', { org });
     const cached = this.getFromCache<GitHubProjectV2[]>(cacheKey);
     if (cached) return cached;
 
@@ -339,11 +339,11 @@ export class GitHubApiService {
         title: project.title,
         url: project.url,
         description: null, // ProjectV2 doesn't have description field
-        visibility: project.public ? "PUBLIC" : "PRIVATE",
+        visibility: project.public ? 'PUBLIC' : 'PRIVATE',
         closed: project.closed,
         owner: {
           login: org, // Use the org parameter since owner info isn't available in ProjectV2
-          type: "Organization",
+          type: 'Organization',
         },
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
@@ -358,7 +358,7 @@ export class GitHubApiService {
   }
 
   async getProjectDetails(projectId: string): Promise<GitHubProjectV2Details> {
-    const cacheKey = this.getCacheKey("getProjectDetails", { projectId });
+    const cacheKey = this.getCacheKey('getProjectDetails', { projectId });
     const cached = this.getFromCache<GitHubProjectV2Details>(cacheKey);
     if (cached) return cached;
 
@@ -553,13 +553,13 @@ export class GitHubApiService {
             totalCount: number;
             nodes: Array<{
               id: string;
-              type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+              type: 'ISSUE' | 'PULL_REQUEST' | 'DRAFT_ISSUE';
               content: {
                 id: string;
                 title: string;
                 url?: string;
                 number?: number;
-                state?: "OPEN" | "CLOSED" | "MERGED";
+                state?: 'OPEN' | 'CLOSED' | 'MERGED';
                 body?: string;
                 author?: {
                   login: string;
@@ -613,11 +613,11 @@ export class GitHubApiService {
           title: project.title,
           url: project.url,
           description: null, // ProjectV2 doesn't have description field
-          visibility: project.public ? "PUBLIC" : "PRIVATE",
+          visibility: project.public ? 'PUBLIC' : 'PRIVATE',
           closed: project.closed,
           owner: {
-            login: "unknown", // Owner info not available in this query
-            type: "Organization",
+            login: 'unknown', // Owner info not available in this query
+            type: 'Organization',
           },
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
@@ -628,7 +628,7 @@ export class GitHubApiService {
           .map((field) => ({
             id: field.id,
             name: field.name,
-            dataType: field.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+            dataType: field.dataType as 'TEXT' | 'SINGLE_SELECT' | 'NUMBER' | 'DATE' | 'ITERATION',
             options: field.options,
           })),
         items: project.items.nodes.map((item) => {
@@ -637,7 +637,7 @@ export class GitHubApiService {
 
           // Also check for assignees in custom fields
           const assigneeField = item.fieldValues.nodes.find(
-            (fv) => fv.field && fv.field.name.toLowerCase().includes("assignee") && fv.users,
+            (fv) => fv.field && fv.field.name.toLowerCase().includes('assignee') && fv.users,
           );
 
           if (assigneeField && assigneeField.users) {
@@ -663,7 +663,7 @@ export class GitHubApiService {
             content: {
               id: item.content.id,
               title: item.content.title,
-              url: item.content.url || "",
+              url: item.content.url || '',
               number: item.content.number,
               state: item.content.state,
               body: item.content.body,
@@ -680,7 +680,7 @@ export class GitHubApiService {
 
                 // Handle user fields (assignees)
                 if (fieldValue.users && fieldValue.users.nodes.length > 0) {
-                  value = fieldValue.users.nodes.map((user) => user.login).join(", ");
+                  value = fieldValue.users.nodes.map((user) => user.login).join(', ');
 
                   // This is handled above in the main assignees extraction
                 }
@@ -688,7 +688,7 @@ export class GitHubApiService {
                 return {
                   field: {
                     name: fieldValue.field!.name,
-                    type: fieldValue.field!.dataType as "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION",
+                    type: fieldValue.field!.dataType as 'TEXT' | 'SINGLE_SELECT' | 'NUMBER' | 'DATE' | 'ITERATION',
                   },
                   value: value,
                 };
@@ -698,11 +698,11 @@ export class GitHubApiService {
         totalItemsCount: project.items.totalCount,
         summary: {
           totalItems: project.items.totalCount,
-          openIssues: project.items.nodes.filter((item) => item.type === "ISSUE" && item.content.state === "OPEN").length,
-          closedIssues: project.items.nodes.filter((item) => item.type === "ISSUE" && item.content.state === "CLOSED").length,
-          openPRs: project.items.nodes.filter((item) => item.type === "PULL_REQUEST" && item.content.state === "OPEN").length,
-          mergedPRs: project.items.nodes.filter((item) => item.type === "PULL_REQUEST" && item.content.state === "MERGED").length,
-          draftItems: project.items.nodes.filter((item) => item.type === "DRAFT_ISSUE").length,
+          openIssues: project.items.nodes.filter((item) => item.type === 'ISSUE' && item.content.state === 'OPEN').length,
+          closedIssues: project.items.nodes.filter((item) => item.type === 'ISSUE' && item.content.state === 'CLOSED').length,
+          openPRs: project.items.nodes.filter((item) => item.type === 'PULL_REQUEST' && item.content.state === 'OPEN').length,
+          mergedPRs: project.items.nodes.filter((item) => item.type === 'PULL_REQUEST' && item.content.state === 'MERGED').length,
+          draftItems: project.items.nodes.filter((item) => item.type === 'DRAFT_ISSUE').length,
         },
       };
 
@@ -721,7 +721,7 @@ export class GitHubApiService {
     body?: string,
     assignees?: string[],
     labels?: string[],
-    milestone?: number
+    milestone?: number,
   ): Promise<{ id: string; number: number; url: string }> {
     try {
       // First, get the repository ID
@@ -765,8 +765,8 @@ export class GitHubApiService {
 
         const availableLabels = labelResponse.repository.labels.nodes;
         labelIds = labels
-          .map(labelName => {
-            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+          .map((labelName) => {
+            const label = availableLabels.find((l) => l.name.toLowerCase() === labelName.toLowerCase());
             return label?.id;
           })
           .filter((id): id is string => id !== undefined);
@@ -950,10 +950,10 @@ export class GitHubApiService {
       return { itemId: response.addProjectV2ItemById.item.id };
     } catch (error: any) {
       // Check if the error is because the item already exists
-      if (error.message.includes("already exists") || error.message.includes("Item already exists")) {
+      if (error.message.includes('already exists') || error.message.includes('Item already exists')) {
         // Try to find the existing item
         const projectDetails = await this.getProjectDetails(projectId);
-        const existingItem = projectDetails.items.find(item => item.content.id === contentId);
+        const existingItem = projectDetails.items.find((item) => item.content.id === contentId);
         if (existingItem) {
           return { itemId: existingItem.id };
         }
@@ -1023,7 +1023,7 @@ export class GitHubApiService {
             id: string;
           };
         };
-      }>(mutation, { projectId, title, body: body || "" });
+      }>(mutation, { projectId, title, body: body || '' });
 
       return { itemId: response.addProjectV2DraftIssue.projectItem.id };
     } catch (error: any) {
@@ -1224,8 +1224,8 @@ export class GitHubApiService {
 
         const availableLabels = labelResponse.repository.labels.nodes;
         labelIds = labels
-          .map(labelName => {
-            const label = availableLabels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
+          .map((labelName) => {
+            const label = availableLabels.find((l) => l.name.toLowerCase() === labelName.toLowerCase());
             return label?.id;
           })
           .filter((id): id is string => id !== undefined);
@@ -1278,9 +1278,9 @@ export class GitHubApiService {
         }
       `;
 
-      await this._octokit.graphql(mutation, { 
-        issueId, 
-        reason: reason || 'COMPLETED'
+      await this._octokit.graphql(mutation, {
+        issueId,
+        reason: reason || 'COMPLETED',
       });
       return true;
     } catch (error: any) {
@@ -1318,7 +1318,7 @@ export class GitHubApiService {
   async updateIssue(owner: string, repo: string, issueNumber: number, title?: string, body?: string): Promise<boolean> {
     try {
       if (!title && !body) {
-        throw new Error("At least one of title or body must be provided");
+        throw new Error('At least one of title or body must be provided');
       }
 
       // Get the issue ID
@@ -1415,9 +1415,7 @@ export class GitHubApiService {
     try {
       // Get the project details to find the Assignees field
       const projectDetails = await this.getProjectDetails(projectId);
-      const assigneesField = projectDetails.fields.find(
-        (f) => f.name.toLowerCase() === "assignees" && f.dataType === "SINGLE_SELECT"
-      );
+      const assigneesField = projectDetails.fields.find((f) => f.name.toLowerCase() === 'assignees' && f.dataType === 'SINGLE_SELECT');
 
       if (!assigneesField) {
         // If no custom assignees field exists, try to update the built-in assignees for the underlying issue
@@ -1427,7 +1425,7 @@ export class GitHubApiService {
           throw new Error(`Project item with ID '${itemId}' not found`);
         }
 
-        if (item.type === "ISSUE" || item.type === "PULL_REQUEST") {
+        if (item.type === 'ISSUE' || item.type === 'PULL_REQUEST') {
           // For issues and PRs, we can update assignees directly on the underlying GitHub issue
           // This requires getting the repository and issue number from the content
           if (item.content.url) {
@@ -1436,14 +1434,14 @@ export class GitHubApiService {
             const repo = urlParts[urlParts.length - 3];
             const number = item.content.number;
 
-            if (number && item.type === "ISSUE") {
+            if (number && item.type === 'ISSUE') {
               await this.updateIssueAssignees(owner, repo, number, usernames);
               return true;
             }
           }
         }
-        
-        throw new Error("No assignees field found in project and item is not a GitHub issue that can be assigned");
+
+        throw new Error('No assignees field found in project and item is not a GitHub issue that can be assigned');
       }
 
       // Get user IDs for the usernames
@@ -1513,18 +1511,18 @@ export class GitHubApiService {
       // Get current assignees first
       const projectDetails = await this.getProjectDetails(projectId);
       const item = projectDetails.items.find((i) => i.id === itemId);
-      
+
       if (!item) {
         throw new Error(`Project item with ID '${itemId}' not found`);
       }
 
       // Get current assignees from the item
       const currentAssignees = item.content.assignees || [];
-      const currentUsernames = currentAssignees.map(a => a.login);
-      
+      const currentUsernames = currentAssignees.map((a) => a.login);
+
       // Remove the specified usernames
-      const remainingUsernames = currentUsernames.filter(username => !usernames.includes(username));
-      
+      const remainingUsernames = currentUsernames.filter((username) => !usernames.includes(username));
+
       // Update with the remaining assignees
       return await this.assignProjectBoardItem(projectId, itemId, remainingUsernames);
     } catch (error: any) {
@@ -1538,12 +1536,12 @@ export class GitHubApiService {
       // Get the project item details
       const projectDetails = await this.getProjectDetails(projectId);
       const item = projectDetails.items.find((i) => i.id === itemId);
-      
+
       if (!item) {
         throw new Error(`Project item with ID '${itemId}' not found`);
       }
 
-      if (item.type === "ISSUE" || item.type === "PULL_REQUEST") {
+      if (item.type === 'ISSUE' || item.type === 'PULL_REQUEST') {
         // For issues and PRs, we can update labels directly on the underlying GitHub issue
         if (item.content.url) {
           const urlParts = item.content.url.split('/');
@@ -1551,14 +1549,14 @@ export class GitHubApiService {
           const repo = urlParts[urlParts.length - 3];
           const number = item.content.number;
 
-          if (number && item.type === "ISSUE") {
+          if (number && item.type === 'ISSUE') {
             await this.updateIssueLabels(owner, repo, number, labels);
             return true;
           }
         }
       }
 
-      throw new Error("Item is not a GitHub issue that can be labeled. Draft issues do not support labels through the GitHub API.");
+      throw new Error('Item is not a GitHub issue that can be labeled. Draft issues do not support labels through the GitHub API.');
     } catch (error: any) {
       throw new Error(`Failed to label project board item: ${error.message}`);
     }
@@ -1578,7 +1576,7 @@ export class GitHubApiService {
         per_page: 100,
       });
 
-      return response.data.map(member => ({
+      return response.data.map((member) => ({
         login: member.login,
         name: member.name || member.login, // Use login as fallback if name is null
         avatarUrl: member.avatar_url,
@@ -1586,14 +1584,14 @@ export class GitHubApiService {
     } catch (error: any) {
       // If we can't get org members (due to permissions), try getting users from project items
       console.warn(`Could not get organization members, falling back to project contributors: ${error.message}`);
-      
+
       try {
         // Get users who are already assigned to items in the project
         const projectDetails = await this.getProjectDetails(projectId);
         const assignedUsers = new Map<string, { login: string; name: string; avatarUrl: string }>();
-        
+
         // Extract unique users from project items
-        projectDetails.items.forEach(item => {
+        projectDetails.items.forEach((item) => {
           if (item.content.assignees) {
             item.content.assignees.forEach((assignee: { login: string; avatarUrl: string }) => {
               assignedUsers.set(assignee.login, {
@@ -1606,14 +1604,16 @@ export class GitHubApiService {
         });
 
         const uniqueUsers = Array.from(assignedUsers.values());
-        
+
         // If we still don't have users, return a helpful message
         if (uniqueUsers.length === 0) {
-          return [{
-            login: "No assignable users found",
-            name: "Try adding users to issues in this project first",
-            avatarUrl: "",
-          }];
+          return [
+            {
+              login: 'No assignable users found',
+              name: 'Try adding users to issues in this project first',
+              avatarUrl: '',
+            },
+          ];
         }
 
         return uniqueUsers;
@@ -1632,7 +1632,7 @@ export class GitHubApiService {
     base: string,
     body?: string,
     draft: boolean = false,
-    maintainerCanModify: boolean = true
+    maintainerCanModify: boolean = true,
   ): Promise<{ id: string; number: number; url: string; mergeableState?: string }> {
     try {
       // Get the repository ID for GraphQL mutation
@@ -1736,7 +1736,7 @@ export class GitHubApiService {
         baseRefName: base,
         headRefName: head,
         title,
-        body: body || "",
+        body: body || '',
         draft,
         maintainerCanModify,
       });
@@ -1753,12 +1753,7 @@ export class GitHubApiService {
     }
   }
 
-  async commentOnPullRequest(
-    owner: string,
-    repo: string,
-    prNumber: number,
-    body: string
-  ): Promise<{ id: string; url: string }> {
+  async commentOnPullRequest(owner: string, repo: string, prNumber: number, body: string): Promise<{ id: string; url: string }> {
     try {
       // Get the PR ID for GraphQL mutation
       const prQuery = `
@@ -1833,7 +1828,7 @@ export class GitHubApiService {
   async getPullRequestDetails(
     owner: string,
     repo: string,
-    prNumber: number
+    prNumber: number,
   ): Promise<{
     id: string;
     number: number;
@@ -1951,7 +1946,7 @@ export class GitHubApiService {
         createdAt: pr.createdAt,
         updatedAt: pr.updatedAt,
         reviewDecision: pr.reviewDecision,
-        reviews: pr.reviews.nodes.map(review => ({
+        reviews: pr.reviews.nodes.map((review) => ({
           author: review.author.login,
           state: review.state,
           submittedAt: review.submittedAt,
@@ -1968,7 +1963,7 @@ export class GitHubApiService {
     owner: string,
     repo: string,
     path: string,
-    branch?: string
+    branch?: string,
   ): Promise<{
     content: string;
     encoding: string;
@@ -2037,7 +2032,7 @@ export class GitHubApiService {
     repo: string,
     path: string = '',
     branch?: string,
-    recursive: boolean = false
+    recursive: boolean = false,
   ): Promise<{
     sha: string;
     path: string;
@@ -2078,7 +2073,7 @@ export class GitHubApiService {
         }
       `;
 
-      // Use provided branch or default branch  
+      // Use provided branch or default branch
       const targetBranch = branch || 'HEAD';
       const expression = path ? `${targetBranch}:${path}` : `${targetBranch}:`;
 
@@ -2108,11 +2103,11 @@ export class GitHubApiService {
       }
 
       const tree = response.repository.object;
-      
+
       return {
         sha: tree.oid,
         path: path || '',
-        tree: tree.entries.map(entry => ({
+        tree: tree.entries.map((entry) => ({
           path: entry.path,
           mode: entry.mode.toString(),
           type: entry.type,
@@ -2129,19 +2124,21 @@ export class GitHubApiService {
   async listBranches(
     owner: string,
     repo: string,
-    includeProtected: boolean = false
-  ): Promise<Array<{
-    name: string;
-    sha: string;
-    protected: boolean;
-    url: string;
-    lastCommit: {
+    includeProtected: boolean = false,
+  ): Promise<
+    Array<{
+      name: string;
       sha: string;
-      message: string;
-      author: string;
-      date: string;
-    };
-  }>> {
+      protected: boolean;
+      url: string;
+      lastCommit: {
+        sha: string;
+        message: string;
+        author: string;
+        date: string;
+      };
+    }>
+  > {
     try {
       const query = `
         query($owner: String!, $name: String!) {
@@ -2184,7 +2181,7 @@ export class GitHubApiService {
       }>(query, { owner, name: repo });
 
       const branches = response.repository.refs.nodes;
-      
+
       // Get branch protection info if requested
       let protectionInfo: Record<string, boolean> = {};
       if (includeProtected) {
@@ -2195,17 +2192,15 @@ export class GitHubApiService {
             repo,
             protected: true,
           });
-          
-          protectionInfo = Object.fromEntries(
-            protectedBranches.data.map(branch => [branch.name, true])
-          );
+
+          protectionInfo = Object.fromEntries(protectedBranches.data.map((branch) => [branch.name, true]));
         } catch (error) {
           // Branch protection info not available, continue without it
           console.warn('Could not fetch branch protection info:', error);
         }
       }
 
-      return branches.map(branch => ({
+      return branches.map((branch) => ({
         name: branch.name,
         sha: branch.target.oid,
         protected: protectionInfo[branch.name] || false,
@@ -2225,7 +2220,7 @@ export class GitHubApiService {
   async getBranchInfo(
     owner: string,
     repo: string,
-    branch: string
+    branch: string,
   ): Promise<{
     name: string;
     sha: string;
@@ -2272,7 +2267,7 @@ export class GitHubApiService {
       `;
 
       const branchRef = branch.startsWith('refs/heads/') ? branch : `refs/heads/${branch}`;
-      
+
       const response = await this._octokit.graphql<{
         repository: {
           ref: {
@@ -2302,7 +2297,7 @@ export class GitHubApiService {
 
       const branchData = response.repository.ref;
       const defaultBranch = response.repository.defaultBranchRef;
-      
+
       // Check if branch is protected
       let isProtected = false;
       try {
@@ -2320,7 +2315,7 @@ export class GitHubApiService {
       // Calculate ahead/behind commits compared to default branch
       let ahead = 0;
       let behind = 0;
-      
+
       if (defaultBranch && branchData.target.oid !== defaultBranch.target.oid) {
         try {
           const compareResponse = await this._octokit.rest.repos.compareCommits({
@@ -2329,7 +2324,7 @@ export class GitHubApiService {
             base: defaultBranch.name,
             head: branch,
           });
-          
+
           ahead = compareResponse.data.ahead_by;
           behind = compareResponse.data.behind_by;
         } catch (error) {
@@ -2365,7 +2360,7 @@ export class GitHubApiService {
     repo: string,
     branchName: string,
     baseBranch: string = 'main',
-    description?: string
+    description?: string,
   ): Promise<{
     name: string;
     sha: string;
@@ -2458,7 +2453,7 @@ export class GitHubApiService {
       });
 
       const newBranch = response.createRef.ref;
-      
+
       return {
         name: branchName,
         sha: newBranch.target.oid,
@@ -2482,7 +2477,7 @@ export class GitHubApiService {
       content: string;
       operation: 'create' | 'update';
       encoding?: string;
-    }>
+    }>,
   ): Promise<{
     commit: {
       sha: string;
@@ -2496,7 +2491,7 @@ export class GitHubApiService {
     try {
       // Security validation: Prevent dangerous operations
       const allowedOperations = ['create', 'update']; // No 'delete'
-      const hasInvalidOp = changes.some(c => !allowedOperations.includes(c.operation));
+      const hasInvalidOp = changes.some((c) => !allowedOperations.includes(c.operation));
       if (hasInvalidOp) {
         throw new Error('Only create and update operations are permitted. Delete operations are not allowed.');
       }
@@ -2515,11 +2510,9 @@ export class GitHubApiService {
         '.aws/',
         '.gcp/',
       ];
-      
-      const hasDangerousPath = changes.some(c => 
-        dangerousPaths.some(dp => c.path.toLowerCase().includes(dp.toLowerCase()))
-      );
-      
+
+      const hasDangerousPath = changes.some((c) => dangerousPaths.some((dp) => c.path.toLowerCase().includes(dp.toLowerCase())));
+
       if (hasDangerousPath) {
         throw new Error('Cannot modify system files, lock files, or sensitive directories');
       }
@@ -2567,7 +2560,7 @@ export class GitHubApiService {
       const fileChanges = await Promise.all(fileInfoPromises);
 
       // Build tree entries for all changes
-      const treeEntries = fileChanges.map(change => ({
+      const treeEntries = fileChanges.map((change) => ({
         path: change.path,
         mode: '100644' as '100644', // Regular file (type assertion for Octokit)
         type: 'blob' as const,
@@ -2582,11 +2575,14 @@ export class GitHubApiService {
         base_tree: parentSha, // Base on current branch state
       });
 
+      // Add MCP co-author to commit message for transparency
+      const messageWithCoAuthor = `${message}\n\nCo-authored-by: GitHub Team MCP <ethid.github.mcp@ethfollow.xyz>`;
+
       // Create commit
       const commitResponse = await this._octokit.rest.git.createCommit({
         owner,
         repo,
-        message,
+        message: messageWithCoAuthor,
         tree: treeResponse.data.sha,
         parents: [parentSha],
       });
@@ -2603,7 +2599,7 @@ export class GitHubApiService {
         commit: {
           sha: commitResponse.data.sha,
           url: commitResponse.data.html_url,
-          message: commitResponse.data.message,
+          message: commitResponse.data.message, // This will include the co-author
           author: commitResponse.data.author.name,
         },
         filesChanged: changes.length,

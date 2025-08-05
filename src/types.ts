@@ -1,4 +1,4 @@
-import { PROJECT_STATUSES } from "./const";
+import { PROJECT_STATUSES } from './const';
 
 export interface GitHubRepository {
   id: number;
@@ -64,7 +64,7 @@ export interface GitHubIssue {
     login: string;
     avatar_url: string;
   };
-  state: "open" | "closed";
+  state: 'open' | 'closed';
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -93,7 +93,7 @@ export interface GitHubPullRequest {
     login: string;
     avatar_url: string;
   };
-  state: "open" | "closed";
+  state: 'open' | 'closed';
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -143,9 +143,9 @@ export interface GitHubApiOptions {
   page?: number;
   since?: string;
   until?: string;
-  sort?: "created" | "updated" | "pushed" | "full_name";
-  direction?: "asc" | "desc";
-  state?: "open" | "closed" | "all";
+  sort?: 'created' | 'updated' | 'pushed' | 'full_name';
+  direction?: 'asc' | 'desc';
+  state?: 'open' | 'closed' | 'all';
 }
 
 export interface GitHubProjectV2 {
@@ -154,7 +154,7 @@ export interface GitHubProjectV2 {
   title: string;
   url: string;
   description: string | null;
-  visibility: "PUBLIC" | "PRIVATE";
+  visibility: 'PUBLIC' | 'PRIVATE';
   closed: boolean;
   owner: {
     login: string;
@@ -167,13 +167,13 @@ export interface GitHubProjectV2 {
 
 export interface GitHubProjectV2Item {
   id: string;
-  type: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+  type: 'ISSUE' | 'PULL_REQUEST' | 'DRAFT_ISSUE';
   content: {
     id: string;
     title: string;
     url: string;
     number?: number;
-    state?: "OPEN" | "CLOSED" | "MERGED";
+    state?: 'OPEN' | 'CLOSED' | 'MERGED';
     body?: string;
     author?: {
       login: string;
@@ -193,7 +193,7 @@ export interface GitHubProjectV2Item {
   fieldValues: Array<{
     field: {
       name: string;
-      type: "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION";
+      type: 'TEXT' | 'SINGLE_SELECT' | 'NUMBER' | 'DATE' | 'ITERATION';
     };
     value: string | number | null;
   }>;
@@ -202,7 +202,7 @@ export interface GitHubProjectV2Item {
 export interface GitHubProjectV2Field {
   id: string;
   name: string;
-  dataType: "TEXT" | "SINGLE_SELECT" | "NUMBER" | "DATE" | "ITERATION";
+  dataType: 'TEXT' | 'SINGLE_SELECT' | 'NUMBER' | 'DATE' | 'ITERATION';
   options?: Array<{
     id: string;
     name: string;

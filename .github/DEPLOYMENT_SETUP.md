@@ -11,6 +11,7 @@ You need to add the following secrets to your GitHub repository:
 This is a Cloudflare API token with the necessary permissions to deploy Workers.
 
 **How to create:**
+
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
 2. Click "Create Token"
 3. Use the "Custom token" template
@@ -26,6 +27,7 @@ This is a Cloudflare API token with the necessary permissions to deploy Workers.
 Your Cloudflare Account ID.
 
 **How to find:**
+
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
 2. Select any domain or go to the Workers section
 3. In the right sidebar, you'll see "Account ID"
@@ -54,6 +56,7 @@ The deployment workflow includes:
 ## Workflow Triggers
 
 The workflow runs automatically when:
+
 - Code is pushed to `master` branch
 - Code is pushed to `main` branch
 - Manually triggered from the GitHub Actions tab
