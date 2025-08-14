@@ -2576,7 +2576,7 @@ export class GitHubApiService {
       });
 
       // Add MCP co-author to commit message for transparency
-      const messageWithCoAuthor = `${message}\n\nCo-authored-by: GitHub Team MCP <ethid.github.mcp@ethfollow.xyz>`;
+      const messageWithCoAuthor = `${message}\n\nCo-authored-by: mcp-agent <mcp-agent@protonmail.com>`;
 
       // Create commit
       const commitResponse = await this._octokit.rest.git.createCommit({
