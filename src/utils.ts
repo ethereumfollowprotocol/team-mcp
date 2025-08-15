@@ -79,6 +79,26 @@ export async function fetchUpstreamAuthToken({
   return [accessToken, null];
 }
 
+/**
+ * Adds MCP co-author attribution to content for transparency.
+ * This ensures all GitHub operations show they were created with MCP assistance.
+ *
+ * @param content - The original content (issue body, PR description, comment, etc.)
+ * @returns The content with co-author attribution appended
+ */
+export function addCoAuthorAttribution(content: string): string {
+  if (!content) {
+    return '\n\n---\nCo-authored-by: mcp-agent';
+  }
+  
+  // Check if attribution already exists to avoid duplication
+  if (content.includes('Co-authored-by: mcp-agent')) {
+    return content;
+  }
+  
+  return `${content}\n\n---\nCo-authored-by: mcp-agent`;
+}
+
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
 export type Props = {
