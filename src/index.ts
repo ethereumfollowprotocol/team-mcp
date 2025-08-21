@@ -1384,8 +1384,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
       async ({ owner, repo, title, body, assignees, labels, milestone, addToProject }) => {
         try {
+          // Add MCP co-author attribution to issue body
+          const bodyWithCoAuthor = body ? `${body}\n\nCo-authored-by: @mcp-agent` : 'Co-authored-by: @mcp-agent';
+
           // Create the issue
-          const issue = await githubApi.createIssue(owner, repo, title, body, assignees, labels, milestone);
+          const issue = await githubApi.createIssue(owner, repo, title, bodyWithCoAuthor, assignees, labels, milestone);
 
           let projectItemId = null;
           if (addToProject) {
@@ -1439,7 +1442,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
       },
       async ({ owner, repo, issueNumber, body }) => {
         try {
-          const comment = await githubApi.commentOnIssue(owner, repo, issueNumber, body);
+          // Add MCP co-author attribution to comment body
+          const bodyWithCoAuthor = `${body}\n\nCo-authored-by: @mcp-agent`;
+
+          const comment = await githubApi.commentOnIssue(owner, repo, issueNumber, bodyWithCoAuthor);
 
           const result = {
             comment: {
@@ -1749,7 +1755,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
-          const pr = await githubApi.createPullRequest(owner, repo, title, head, base, body, draft, maintainerCanModify);
+          // Add MCP co-author attribution to PR body
+          const bodyWithCoAuthor = body ? `${body}\n\nCo-authored-by: @mcp-agent` : 'Co-authored-by: @mcp-agent';
+
+          const pr = await githubApi.createPullRequest(owner, repo, title, head, base, bodyWithCoAuthor, draft, maintainerCanModify);
 
           return {
             content: [
@@ -1803,7 +1812,10 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         const githubApi = new GitHubApiService(this.props.accessToken);
 
         try {
-          const comment = await githubApi.commentOnPullRequest(owner, repo, prNumber, body);
+          // Add MCP co-author attribution to comment body
+          const bodyWithCoAuthor = `${body}\n\nCo-authored-by: @mcp-agent`;
+
+          const comment = await githubApi.commentOnPullRequest(owner, repo, prNumber, bodyWithCoAuthor);
 
           return {
             content: [
