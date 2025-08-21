@@ -1,86 +1,89 @@
-import { type Env } from './types';
-
 /**
- * Provides rate limiting and caching utilities for GitHub API requests
+ * Constructs an authorization URL for an upstream service.
+ *
+ * @param {Object} options
+ * @param {string} options.upstream_url - The base URL of the upstream service.
+ * @param {string} options.client_id - The client ID of the application.
+ * @param {string} options.redirect_uri - The redirect URI of the application.
+ * @param {string} [options.state] - The state parameter.
+ *
+ * @returns {string} The authorization URL.
  */
-export class RateLimitCache {
-  private cache: Map<string, { data: any; timestamp: number }> = new Map();
-  private readonly TTL = 5 * 60 * 1000; // 5 minutes
-
-  set(key: string, data: any): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
-  }
-
-  get<T>(key: string): T | null {
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < this.TTL) {
-      return cached.data as T;
-    }
-    return null;
-  }
-
-  clear(): void {
-    this.cache.clear();
-  }
+export function getUpstreamAuthorizeUrl({
+  upstream_url,
+  client_id,
+  scope,
+  redirect_uri,
+  state,
+}: {
+  upstream_url: string;
+  client_id: string;
+  scope: string;
+  redirect_uri: string;
+  state?: string;
+}) {
+  const upstream = new URL(upstream_url);
+  upstream.searchParams.set('client_id', client_id);
+  upstream.searchParams.set('redirect_uri', redirect_uri);
+  upstream.searchParams.set('scope', scope);
+  if (state) upstream.searchParams.set('state', state);
+  upstream.searchParams.set('response_type', 'code');
+  return upstream.href;
 }
 
 /**
- * Validates and sanitizes GitHub repository and organization names
+ * Fetches an authorization token from an upstream service.
+ *
+ * @param {Object} options
+ * @param {string} options.client_id - The client ID of the application.
+ * @param {string} options.client_secret - The client secret of the application.
+ * @param {string} options.code - The authorization code.
+ * @param {string} options.redirect_uri - The redirect URI of the application.
+ * @param {string} options.upstream_url - The token endpoint URL of the upstream service.
+ *
+ * @returns {Promise<[string, null] | [null, Response]>} A promise that resolves to an array containing the access token or an error response.
  */
-export function validateGitHubName(name: string, type: 'repo' | 'org' | 'username'): boolean {
-  // GitHub names must be 1-39 characters, alphanumeric with hyphens
-  const pattern = /^[a-zA-Z0-9-_]+$/;
-  
-  if (!name || name.length === 0 || name.length > 39) {
-    return false;
+export async function fetchUpstreamAuthToken({
+  client_id,
+  client_secret,
+  code,
+  redirect_uri,
+  upstream_url,
+}: {
+  code: string | undefined;
+  upstream_url: string;
+  client_secret: string;
+  redirect_uri: string;
+  client_id: string;
+}): Promise<[string, null] | [null, Response]> {
+  if (!code) {
+    return [null, new Response('Missing code', { status: 400 })];
   }
-  
-  if (!pattern.test(name)) {
-    return false;
+
+  const resp = await fetch(upstream_url, {
+    body: new URLSearchParams({ client_id, client_secret, code, redirect_uri }).toString(),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    method: 'POST',
+  });
+  if (!resp.ok) {
+    console.log(await resp.text());
+    return [null, new Response('Failed to fetch access token', { status: 500 })];
   }
-  
-  // Cannot start or end with hyphen
-  if (name.startsWith('-') || name.endsWith('-')) {
-    return false;
+  const body = await resp.formData();
+  const accessToken = body.get('access_token') as string;
+  if (!accessToken) {
+    return [null, new Response('Missing access token', { status: 400 })];
   }
-  
-  return true;
+  return [accessToken, null];
 }
 
-/**
- * Formats date/time for consistent display
- */
-export function formatDate(date: string | Date): string {
-  const d = new Date(date);
-  return d.toISOString().split('T')[0]; // YYYY-MM-DD format
-}
-
-/**
- * Sanitizes user input to prevent injection attacks
- */
-export function sanitizeInput(input: string): string {
-  return input
-    .replace(/[<>"'&]/g, '') // Remove potentially harmful characters
-    .trim()
-    .substring(0, 1000); // Limit length
-}
-
-/**
- * Adds MCP co-author attribution to GitHub content (PR descriptions, issue bodies, comments)
- * This ensures transparency about MCP assistance in all GitHub operations
- */
-export function addCoAuthorAttribution(content: string): string {
-  if (!content) {
-    content = '';
-  }
-  
-  // Check if attribution already exists to avoid duplicates
-  if (content.includes('Co-authored-by: mcp-agent')) {
-    return content;
-  }
-  
-  // Add signature at the end with proper spacing
-  const attribution = '\n\n---\n*Co-authored-by: mcp-agent*';
-  
-  return content.trim() + attribution;
-}
+// Context from the auth process, encrypted & stored in the auth token
+// and provided to the DurableMCP as this.props
+export type Props = {
+  login: string;
+  name: string;
+  email: string;
+  accessToken: string;
+};
